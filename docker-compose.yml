@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - FISH_AUDIO_API_KEY=${FISH_AUDIO_API_KEY}
+      - PORT=${PORT:-3000}
+    restart: unless-stopped
+    volumes:
+      - tmp-data:/app/tmp
+
+volumes:
+  tmp-data:

@@ -1,0 +1,348 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-hover: #222632;
+  --border: #2a2e3b;
+  --text: #e4e6eb;
+  --text-muted: #8b8fa3;
+  --primary: #6c5ce7;
+  --primary-hover: #7c6ef7;
+  --error: #e74c3c;
+  --error-bg: #2d1b1b;
+  --success: #2ecc71;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* ─── Header ───────────────────────────────────── */
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+/* ─── Cards ────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+/* ─── Textarea ─────────────────────────────────── */
+
+textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.85rem 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.char-count {
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+/* ─── File Upload ──────────────────────────────── */
+
+.file-upload {
+  margin-top: 0.75rem;
+}
+
+.file-upload input[type="file"] {
+  display: none;
+}
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.file-label:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.file-icon {
+  font-size: 1.1rem;
+}
+
+/* ─── Form Controls ────────────────────────────── */
+
+.form-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  flex: 0 0 70px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+select {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.55rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b8fa3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.btn-icon {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ─── Buttons ──────────────────────────────────── */
+
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 0.85rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  margin-bottom: 1.25rem;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ─── Progress ─────────────────────────────────── */
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.progress-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ─── Result ───────────────────────────────────── */
+
+.result-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+audio {
+  width: 100%;
+  border-radius: 8px;
+  outline: none;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-download:hover {
+  opacity: 0.85;
+}
+
+/* ─── Error ────────────────────────────────────── */
+
+.error-card {
+  background: var(--error-bg);
+  border-color: var(--error);
+}
+
+.error-card h2 {
+  color: var(--error);
+}
+
+.error-card p {
+  color: #f0a0a0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+/* ─── Utility ──────────────────────────────────── */
+
+.hidden {
+  display: none !important;
+}
+
+/* ─── Footer ───────────────────────────────────── */
+
+footer {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+footer a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Responsive ───────────────────────────────── */
+
+@media (max-width: 520px) {
+  .container {
+    padding: 1.25rem 1rem;
+  }
+
+  .form-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-group label {
+    flex: unset;
+    margin-bottom: 0.25rem;
+  }
+}
