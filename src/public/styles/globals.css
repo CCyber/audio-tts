@@ -423,3 +423,15 @@ h2 { font-size: 22px; font-weight: 700; margin: 0; }
 .action-list { display: flex; flex-direction: column; }
 .action-item { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--separator); font-size: 15px; }
 .action-destructive { color: #ff3b30; }
+
+.proj-tile-wrap { position: relative; }
+.proj-tile-more {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  color: white;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+}
