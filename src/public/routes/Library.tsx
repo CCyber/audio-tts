@@ -1,13 +1,16 @@
-import { For, createMemo, createEffect, on } from "solid-js";
+import { For, createMemo, createEffect, createSignal, on } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import { Header } from "../components/shell/Header";
 import { RecordingRow } from "../components/tile/RecordingRow";
+import { RecordingActionsSheet } from "../components/tile/RecordingActionsSheet";
 import { Chip } from "../components/common/Chip";
 import { libraryState } from "../stores/library";
 import { uiState, setLibraryFilter } from "../stores/ui";
+import type { Recording } from "../lib/api";
 
 export function Library() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [actionsRec, setActionsRec] = createSignal<Recording | null>(null);
 
   createEffect(on(() => searchParams.tag, (tag) => {
     setLibraryFilter({ tag: typeof tag === "string" ? tag : undefined });
@@ -48,7 +51,8 @@ export function Library() {
           <option value="title">Titel A–Z</option>
         </select>
       </div>
-      <For each={filtered()}>{(r) => <RecordingRow recording={r} showProject={true} />}</For>
+      <For each={filtered()}>{(r) => <RecordingRow recording={r} showProject={true} onMore={() => setActionsRec(r)} />}</For>
+      <RecordingActionsSheet recording={actionsRec()} onClose={() => setActionsRec(null)} />
     </>
   );
 }

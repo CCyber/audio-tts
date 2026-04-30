@@ -419,3 +419,7 @@ h2 { font-size: 22px; font-weight: 700; margin: 0; }
 .rec-row-progress { height: 2px; background: var(--separator); border-radius: 2px; margin-top: var(--space-1); overflow: hidden; }
 .rec-row-progress-fill { height: 100%; background: var(--accent-gradient); transition: width 0.3s; }
 .form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); }
+
+.action-list { display: flex; flex-direction: column; }
+.action-item { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--separator); font-size: 15px; }
+.action-destructive { color: #ff3b30; }

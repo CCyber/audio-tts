@@ -2,6 +2,7 @@ import { For, Show, createSignal, createResource } from "solid-js";
 import { useSearchParams, useNavigate } from "@solidjs/router";
 import { Header } from "../components/shell/Header";
 import { RecordingRow } from "../components/tile/RecordingRow";
+import { RecordingActionsSheet } from "../components/tile/RecordingActionsSheet";
 import { libraryState } from "../stores/library";
 import { uiState, addRecentSearch } from "../stores/ui";
 import { api, Recording } from "../lib/api";
@@ -11,6 +12,7 @@ export function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQ = typeof searchParams.q === "string" ? searchParams.q : "";
   const [query, setQuery] = createSignal(initialQ);
+  const [actionsRec, setActionsRec] = createSignal<Recording | null>(null);
   let inputEl!: HTMLInputElement;
 
   setTimeout(() => inputEl?.focus(), 0);
@@ -61,7 +63,7 @@ export function Search() {
       <Show when={query().trim()}>
         <Show when={results()?.length}>
           <h3 class="section-title" style={{ padding: "var(--space-3) var(--space-4) 0" }}>Aufnahmen</h3>
-          <For each={results()}>{(r) => <RecordingRow recording={r} showProject={true} />}</For>
+          <For each={results()}>{(r) => <RecordingRow recording={r} showProject={true} onMore={() => setActionsRec(r)} />}</For>
         </Show>
 
         <Show when={matchingProjects().length}>
@@ -78,6 +80,7 @@ export function Search() {
           )}</For>
         </Show>
       </Show>
+      <RecordingActionsSheet recording={actionsRec()} onClose={() => setActionsRec(null)} />
     </>
   );
 }
