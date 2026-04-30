@@ -7,88 +7,28 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Aria</h1>
-      <p class="subtitle">Text-to-Speech Generator</p>
-    </header>
-
-    <main>
-      <!-- Text Input Section -->
-      <section class="card">
-        <h2>Text</h2>
-        <textarea
-          id="textInput"
-          placeholder="Text hier eingeben..."
-          rows="8"
-        ></textarea>
-        <div class="file-upload">
-          <label for="fileInput" class="file-label">
-            <span class="file-icon">&#128196;</span>
-            <span id="fileName">.txt Datei hochladen</span>
-          </label>
-          <input type="file" id="fileInput" accept=".txt" />
-        </div>
-        <p class="char-count" id="charCount">0 Zeichen</p>
+  <div id="app">
+    <aside id="sidebar">
+      <h1 class="brand">Aria</h1>
+      <section class="sidebar-section">
+        <h2>Projekte</h2>
+        <ul id="project-list" class="project-list"></ul>
+        <button id="add-project-btn" class="link-btn">+ Neues Projekt</button>
       </section>
-
-      <!-- Settings Section -->
-      <section class="card">
-        <h2>Einstellungen</h2>
-
-        <div class="form-group">
-          <label for="voiceSelect">Stimme</label>
-          <select id="voiceSelect" disabled>
-            <option value="">Stimmen werden geladen...</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="modelSelect">Modell</label>
-          <select id="modelSelect">
-            <option value="tts-1">tts-1</option>
-            <option value="gpt-4o-mini-tts">gpt-4o-mini-tts</option>
-          </select>
-        </div>
+      <section class="sidebar-section">
+        <h2>Tags</h2>
+        <ul id="tag-list" class="tag-list"></ul>
       </section>
-
-      <!-- Generate Button -->
-      <button id="generateBtn" class="btn-primary" disabled>
-        Generieren
-      </button>
-
-      <!-- Progress Section -->
-      <section id="progressSection" class="card hidden">
-        <h2>Fortschritt</h2>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill"></div>
-        </div>
-        <p class="progress-text" id="progressText">Wird vorbereitet...</p>
-      </section>
-
-      <!-- Result Section -->
-      <section id="resultSection" class="card hidden">
-        <h2>Ergebnis</h2>
-        <div class="result-content">
-          <audio id="audioPlayer" controls></audio>
-          <a id="downloadLink" class="btn-download" download="speech.mp3">
-            &#11015; MP3 herunterladen
-          </a>
-        </div>
-      </section>
-
-      <!-- Error Section -->
-      <section id="errorSection" class="card error-card hidden">
-        <h2>Fehler</h2>
-        <p id="errorText"></p>
-      </section>
+    </aside>
+    <main id="main">
+      <header id="project-header"></header>
+      <div id="toolbar" class="toolbar"></div>
+      <div id="recording-list" class="recording-list"></div>
     </main>
-
-    <footer>
-      <p>Powered by <a href="https://platform.openai.com/docs/guides/text-to-speech" target="_blank" rel="noopener">OpenAI</a></p>
-    </footer>
   </div>
 
-  <script src="app.js"></script>
+  <div id="modal-root"></div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
