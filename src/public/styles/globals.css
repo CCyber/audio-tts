@@ -403,3 +403,15 @@ h2 { font-size: 22px; font-weight: 700; margin: 0; }
   border-bottom: 1px solid var(--separator);
   font-size: 15px;
 }
+
+.error-banner { background: rgba(255, 59, 48, 0.1); color: #ff3b30; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 14px; }
+.compose-textarea { min-height: 140px; resize: vertical; }
+.form-label { display: block; font-size: 13px; color: var(--text-muted); margin: var(--space-3) 0 var(--space-1); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.voice-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.voice-chip { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); color: white; font-size: 13px; font-weight: 600; opacity: 0.6; transition: opacity 0.15s, transform 0.1s; }
+.voice-chip-active { opacity: 1; transform: scale(1.05); }
+.radio-row { display: flex; gap: var(--space-3); }
+.radio-label { display: inline-flex; align-items: center; gap: var(--space-1); font-size: 14px; }
+.tag-editor { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.tag-editor-input { flex: 1; min-width: 120px; }
+.form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); }
