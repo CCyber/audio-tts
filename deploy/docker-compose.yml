@@ -1,0 +1,37 @@
+# Aria — NAS deployment example
+#
+# Pulls the prebuilt image from GitHub Container Registry instead of
+# building locally. Use this on the NAS:
+#
+#   1. Copy this file (or just this directory) to the NAS, e.g.
+#      /volume1/docker/aria/docker-compose.yml
+#   2. Create a sibling .env with at minimum OPENAI_API_KEY=sk-...
+#   3. Adjust the volume binding below to a path that exists on your NAS.
+#   4. docker compose pull && docker compose up -d
+#
+# To update later: docker compose pull && docker compose up -d
+# (the image tag :latest is rebuilt on every push to main)
+
+services:
+  app:
+    image: ghcr.io/ccyber/audio-tts:latest
+    container_name: aria
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PORT=3000
+      - ARIA_DATA_DIR=/app/data
+    restart: unless-stopped
+    volumes:
+      # Bind mount — easiest for browsing/backing up the SQLite DB and MP3s
+      # directly on the NAS. Adjust the host path to wherever you want the
+      # data to live (must exist and be writable by the container's appuser).
+      - /volume1/docker/aria/data:/app/data
+      #
+      # Alternative: named volume (managed by Docker, opaque to the host FS).
+      # Comment the bind mount above and uncomment these two blocks.
+      # - aria-data:/app/data
+
+# volumes:
+#   aria-data:
