@@ -2,10 +2,12 @@ import { api } from "./api";
 import { store } from "./state";
 import { initSidebar } from "./sidebar";
 import { initLibrary } from "./library";
+import { initGenerateModal } from "./generate";
 
 document.addEventListener("DOMContentLoaded", async () => {
   initSidebar();
   initLibrary();
+  initGenerateModal();
   await loadInitial();
 });
 
