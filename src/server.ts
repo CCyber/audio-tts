@@ -1,48 +1,19 @@
-import express from "express";
-import cors from "cors";
 import path from "path";
 import fs from "fs";
-import { ttsRouter } from "./routes/tts";
+import { openDb } from "./db";
+import { createApp } from "./app";
 
-const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const DATA_ROOT = process.env.ARIA_DATA_DIR || path.join(__dirname, "..", "data");
 
-// Ensure tmp directory exists for temporary audio files
-const tmpDir = path.join(__dirname, "..", "tmp");
-if (!fs.existsSync(tmpDir)) {
-  fs.mkdirSync(tmpDir, { recursive: true });
-}
+fs.mkdirSync(path.join(DATA_ROOT, "audio"), { recursive: true });
 
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: "5mb" }));
-app.use(express.urlencoded({ extended: true, limit: "5mb" }));
-
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, "public")));
-
-// API routes
-app.use("/api", ttsRouter);
-
-// Health check
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
-});
-
-// Fallback: serve index.html for root
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+const db = openDb(path.join(DATA_ROOT, "aria.db"));
+const app = createApp({ db, dataRoot: DATA_ROOT });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Fish Audio TTS server running on http://0.0.0.0:${PORT}`);
-  if (!process.env.FISH_AUDIO_API_KEY) {
-    console.warn(
-      "WARNING: FISH_AUDIO_API_KEY is not set. API calls will fail."
-    );
+  console.log(`Aria TTS server running on http://0.0.0.0:${PORT}`);
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("WARNING: OPENAI_API_KEY is not set. API calls will fail.");
   }
 });
