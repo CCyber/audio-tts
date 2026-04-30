@@ -6,13 +6,24 @@ import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
 
-const FISH_API_BASE = "https://api.fish.audio";
-const CHUNK_SIZE = 2000;
+const OPENAI_API_BASE = "https://api.openai.com";
+const CHUNK_SIZE = 4000;
 
-// Multer config for .txt file uploads
+const ALLOWED_MODELS = ["tts-1", "gpt-4o-mini-tts"] as const;
+type AllowedModel = (typeof ALLOWED_MODELS)[number];
+
+const VOICES = [
+  { id: "alloy", title: "Alloy" },
+  { id: "echo", title: "Echo" },
+  { id: "fable", title: "Fable" },
+  { id: "onyx", title: "Onyx" },
+  { id: "nova", title: "Nova" },
+  { id: "shimmer", title: "Shimmer" },
+];
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (
       file.mimetype === "text/plain" ||
@@ -26,17 +37,17 @@ const upload = multer({
 });
 
 function getApiKey(): string {
-  const key = process.env.FISH_AUDIO_API_KEY;
+  const key = process.env.OPENAI_API_KEY;
   if (!key) {
-    throw new Error("FISH_AUDIO_API_KEY is not configured");
+    throw new Error("OPENAI_API_KEY is not configured");
   }
   return key;
 }
 
-/**
- * Split text into chunks of roughly `maxLen` characters,
- * preferring to break at sentence boundaries.
- */
+function isAllowedModel(model: string): model is AllowedModel {
+  return (ALLOWED_MODELS as readonly string[]).includes(model);
+}
+
 function splitTextIntoChunks(text: string, maxLen: number = CHUNK_SIZE): string[] {
   if (text.length <= maxLen) {
     return [text];
@@ -53,7 +64,6 @@ function splitTextIntoChunks(text: string, maxLen: number = CHUNK_SIZE): string[
 
     let splitIndex = maxLen;
 
-    // Try to split at the last sentence boundary within maxLen
     const segment = remaining.substring(0, maxLen);
     const lastSentenceEnd = Math.max(
       segment.lastIndexOf(". "),
@@ -67,7 +77,6 @@ function splitTextIntoChunks(text: string, maxLen: number = CHUNK_SIZE): string[
     if (lastSentenceEnd > maxLen * 0.3) {
       splitIndex = lastSentenceEnd + 1;
     } else {
-      // Fall back to last space
       const lastSpace = segment.lastIndexOf(" ");
       if (lastSpace > maxLen * 0.3) {
         splitIndex = lastSpace;
@@ -81,26 +90,21 @@ function splitTextIntoChunks(text: string, maxLen: number = CHUNK_SIZE): string[
   return chunks.filter((c) => c.length > 0);
 }
 
-/**
- * Call Fish Audio TTS API for a single text chunk.
- * Returns the audio data as a Buffer.
- */
 async function generateTTSChunk(
   text: string,
-  referenceId: string,
-  model: string
+  voice: string,
+  model: AllowedModel
 ): Promise<Buffer> {
   const apiKey = getApiKey();
 
   const payload = {
-    text,
-    format: "mp3",
-    mp3_bitrate: 128,
-    reference_id: referenceId,
-    ...(model && { model }),
+    model,
+    voice,
+    input: text,
+    response_format: "mp3",
   };
 
-  const response = await fetch(`${FISH_API_BASE}/v1/tts`, {
+  const response = await fetch(`${OPENAI_API_BASE}/v1/audio/speech`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -110,7 +114,7 @@ async function generateTTSChunk(
   });
 
   if (!response.ok) {
-    let errorMessage = `Fish Audio API error: ${response.status} ${response.statusText}`;
+    let errorMessage = `OpenAI API error: ${response.status} ${response.statusText}`;
     try {
       const errorBody = await response.text();
       errorMessage += ` – ${errorBody}`;
@@ -126,35 +130,16 @@ async function generateTTSChunk(
 
 // ─── GET /api/voices ────────────────────────────────────────────────
 
-router.get("/voices", async (_req: Request, res: Response) => {
-  try {
-    const apiKey = getApiKey();
+router.get("/voices", (_req: Request, res: Response) => {
+  res.json({
+    items: VOICES.map((v) => ({ _id: v.id, title: v.title })),
+  });
+});
 
-    const response = await fetch(
-      `${FISH_API_BASE}/model?self=true&page_size=50`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-      }
-    );
+// ─── GET /api/models ────────────────────────────────────────────────
 
-    if (!response.ok) {
-      const body = await response.text();
-      res.status(response.status).json({
-        error: `Failed to fetch voices: ${response.statusText}`,
-        details: body,
-      });
-      return;
-    }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Error fetching voices:", message);
-    res.status(500).json({ error: message });
-  }
+router.get("/models", (_req: Request, res: Response) => {
+  res.json({ items: ALLOWED_MODELS });
 });
 
 // ─── POST /api/tts ──────────────────────────────────────────────────
@@ -164,10 +149,9 @@ router.post(
   upload.single("file"),
   async (req: Request, res: Response) => {
     try {
-      // Extract text from body or uploaded file
       let text: string = req.body.text || "";
-      const referenceId: string = req.body.reference_id || "";
-      const model: string = req.body.model || "fish-speech-1.5";
+      const voice: string = req.body.reference_id || req.body.voice || "";
+      const model: string = req.body.model || "tts-1";
 
       if (req.file) {
         text = req.file.buffer.toString("utf-8");
@@ -180,31 +164,39 @@ router.post(
         return;
       }
 
-      if (!referenceId) {
-        res.status(400).json({ error: "No voice selected (reference_id is required)." });
+      if (!voice) {
+        res.status(400).json({ error: "No voice selected." });
         return;
       }
 
-      // Split long texts into chunks
+      if (!VOICES.some((v) => v.id === voice)) {
+        res.status(400).json({ error: `Unknown voice: ${voice}` });
+        return;
+      }
+
+      if (!isAllowedModel(model)) {
+        res.status(400).json({
+          error: `Unknown model: ${model}. Allowed: ${ALLOWED_MODELS.join(", ")}`,
+        });
+        return;
+      }
+
       const chunks = splitTextIntoChunks(text);
       console.log(
-        `Processing TTS request: ${text.length} chars, ${chunks.length} chunk(s), model=${model}`
+        `Processing TTS request: ${text.length} chars, ${chunks.length} chunk(s), model=${model}, voice=${voice}`
       );
 
-      // Generate audio for each chunk
       const audioBuffers: Buffer[] = [];
       for (let i = 0; i < chunks.length; i++) {
         console.log(
           `  Generating chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`
         );
-        const buffer = await generateTTSChunk(chunks[i], referenceId, model);
+        const buffer = await generateTTSChunk(chunks[i], voice, model);
         audioBuffers.push(buffer);
       }
 
-      // Concatenate all MP3 buffers
       const finalBuffer = Buffer.concat(audioBuffers);
 
-      // Save to temp file
       const tmpDir = path.join(__dirname, "..", "..", "tmp");
       if (!fs.existsSync(tmpDir)) {
         fs.mkdirSync(tmpDir, { recursive: true });
@@ -213,7 +205,6 @@ router.post(
       const filepath = path.join(tmpDir, filename);
       fs.writeFileSync(filepath, finalBuffer);
 
-      // Schedule cleanup after 5 minutes
       setTimeout(() => {
         if (fs.existsSync(filepath)) {
           fs.unlinkSync(filepath);
@@ -241,7 +232,6 @@ router.post(
 router.get("/download/:filename", (req: Request, res: Response) => {
   const { filename } = req.params;
 
-  // Sanitize filename to prevent directory traversal
   if (!filename.match(/^tts-[\w-]+\.mp3$/)) {
     res.status(400).json({ error: "Invalid filename" });
     return;
@@ -258,7 +248,6 @@ router.get("/download/:filename", (req: Request, res: Response) => {
     if (err) {
       console.error("Download error:", err);
     }
-    // Delete file after download
     setTimeout(() => {
       if (fs.existsSync(filepath)) {
         fs.unlinkSync(filepath);

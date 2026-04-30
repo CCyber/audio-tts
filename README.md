@@ -1,19 +1,19 @@
-# Fish Audio TTS
+# Aria
 
-Web-Applikation zur Text-to-Speech-Generierung mit der [Fish Audio](https://fish.audio) API. Bietet ein modernes Browser-Interface zum Eingeben von Text oder Hochladen von `.txt`-Dateien, Auswahl von Stimmen und Modellen, sowie den Download der generierten MP3-Dateien.
+Aria ist eine Web-Applikation zur Text-to-Speech-Generierung auf Basis der [OpenAI Audio API](https://platform.openai.com/docs/guides/text-to-speech). Browser-Interface zum Eingeben von Text oder Hochladen von `.txt`-Dateien, Auswahl von Stimme und Modell, MP3-Download.
 
 ## Voraussetzungen
 
 - [Docker](https://docs.docker.com/get-docker/) (>= 20.x)
 - [Docker Compose](https://docs.docker.com/compose/install/) (>= 2.x)
-- Ein [Fish Audio](https://fish.audio) API-Key
+- Ein [OpenAI](https://platform.openai.com) API-Key
 
 ## Setup
 
 ```bash
 # 1. Repository klonen
-git clone https://github.com/dein-user/fish-audio-tts.git
-cd fish-audio-tts
+git clone https://github.com/dein-user/aria-tts.git
+cd aria-tts
 
 # 2. Umgebungsvariablen konfigurieren
 cp .env.example .env
@@ -28,10 +28,19 @@ open http://localhost:3000
 
 ## Umgebungsvariablen
 
-| Variable              | Beschreibung                          | Standard |
-|-----------------------|---------------------------------------|----------|
-| `FISH_AUDIO_API_KEY`  | API-Key für Fish Audio (erforderlich) | –        |
-| `PORT`                | Server-Port                           | `3000`   |
+| Variable          | Beschreibung                          | Standard |
+|-------------------|---------------------------------------|----------|
+| `OPENAI_API_KEY`  | API-Key für OpenAI (erforderlich)     | –        |
+| `PORT`            | Server-Port                           | `3000`   |
+
+## Modelle & Stimmen
+
+| Modell             | Beschreibung                                     |
+|--------------------|--------------------------------------------------|
+| `tts-1`            | Schnell, niedrige Latenz                         |
+| `gpt-4o-mini-tts`  | Neueres Modell, höhere Sprachqualität            |
+
+Verfügbare Stimmen: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
 
 ## API Dokumentation
 
@@ -39,30 +48,27 @@ open http://localhost:3000
 
 Health-Check-Endpoint.
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-01-01T00:00:00.000Z",
-  "uptime": 123.456
-}
-```
-
 ### `GET /api/voices`
 
-Lädt die verfügbaren Stimmen aus der Fish Audio Library (eigene Modelle).
+Liefert die verfügbaren Stimmen.
 
 **Response:**
 ```json
 {
   "items": [
-    {
-      "_id": "abc123",
-      "title": "Meine Stimme",
-      "description": "..."
-    }
+    { "_id": "alloy", "title": "Alloy" },
+    { "_id": "echo",  "title": "Echo"  }
   ]
 }
+```
+
+### `GET /api/models`
+
+Liefert die zugelassenen Modelle.
+
+**Response:**
+```json
+{ "items": ["tts-1", "gpt-4o-mini-tts"] }
 ```
 
 ### `POST /api/tts`
@@ -71,12 +77,12 @@ Generiert eine MP3-Datei aus Text.
 
 **Request** (`multipart/form-data` oder `application/x-www-form-urlencoded`):
 
-| Feld            | Typ    | Beschreibung                              |
-|-----------------|--------|-------------------------------------------|
-| `text`          | string | Der zu sprechende Text                    |
-| `reference_id`  | string | ID der gewählten Stimme                   |
-| `model`         | string | Modellname (`fish-speech-1.5` / `fish-speech-1.6`) |
-| `file`          | file   | Optional: `.txt`-Datei statt Textfeld     |
+| Feld            | Typ    | Beschreibung                                                   |
+|-----------------|--------|----------------------------------------------------------------|
+| `text`          | string | Der zu sprechende Text                                         |
+| `reference_id`  | string | ID der gewählten Stimme (z.B. `alloy`) — Alias: `voice`        |
+| `model`         | string | `tts-1` oder `gpt-4o-mini-tts`                                 |
+| `file`          | file   | Optional: `.txt`-Datei statt Textfeld                          |
 
 **Response:**
 ```json
@@ -95,11 +101,10 @@ Lädt die generierte MP3-Datei herunter. Dateien werden nach dem Download automa
 
 ## Features
 
-- Automatisches Chunking langer Texte (> 2000 Zeichen)
+- Automatisches Chunking langer Texte (> 4000 Zeichen pro Request)
 - Temporäre Dateien werden automatisch nach 5 Minuten oder nach dem Download gelöscht
 - Responsive Design
 - Fortschrittsanzeige während der Generierung
-- Benutzerfreundliche Fehlermeldungen
 
 ## Lokale Entwicklung (ohne Docker)
 

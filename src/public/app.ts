@@ -1,4 +1,4 @@
-// Fish Audio TTS – Frontend Application
+// Aria — TTS Frontend Application
 // This file is compiled to app.js and served as a static asset.
 
 interface Voice {
@@ -31,7 +31,6 @@ const fileInput = document.getElementById("fileInput") as HTMLInputElement;
 const fileName = document.getElementById("fileName") as HTMLSpanElement;
 const charCount = document.getElementById("charCount") as HTMLParagraphElement;
 const voiceSelect = document.getElementById("voiceSelect") as HTMLSelectElement;
-const refreshVoices = document.getElementById("refreshVoices") as HTMLButtonElement;
 const modelSelect = document.getElementById("modelSelect") as HTMLSelectElement;
 const generateBtn = document.getElementById("generateBtn") as HTMLButtonElement;
 
@@ -195,7 +194,7 @@ async function generateTTS(): Promise<void> {
 
   generateBtn.disabled = true;
   generateBtn.textContent = "Wird generiert...";
-  showProgress("Sende Anfrage an Fish Audio API...", 10);
+  showProgress("Sende Anfrage an OpenAI API...", 10);
 
   try {
     // Build FormData to support both text and file upload
@@ -239,12 +238,6 @@ async function generateTTS(): Promise<void> {
 }
 
 generateBtn.addEventListener("click", generateTTS);
-
-// ─── Refresh Voices ─────────────────────────────────
-
-refreshVoices.addEventListener("click", () => {
-  loadVoices();
-});
 
 // ─── Init ───────────────────────────────────────────
 

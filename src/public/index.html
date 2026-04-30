@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fish Audio TTS</title>
+  <title>Aria — TTS</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Fish Audio TTS</h1>
+      <h1>Aria</h1>
       <p class="subtitle">Text-to-Speech Generator</p>
     </header>
 
@@ -41,14 +41,13 @@
           <select id="voiceSelect" disabled>
             <option value="">Stimmen werden geladen...</option>
           </select>
-          <button id="refreshVoices" class="btn-icon" title="Stimmen neu laden">&#8635;</button>
         </div>
 
         <div class="form-group">
           <label for="modelSelect">Modell</label>
           <select id="modelSelect">
-            <option value="fish-speech-1.5">fish-speech-1.5</option>
-            <option value="fish-speech-1.6">fish-speech-1.6</option>
+            <option value="tts-1">tts-1</option>
+            <option value="gpt-4o-mini-tts">gpt-4o-mini-tts</option>
           </select>
         </div>
       </section>
@@ -86,7 +85,7 @@
     </main>
 
     <footer>
-      <p>Powered by <a href="https://fish.audio" target="_blank" rel="noopener">Fish Audio</a></p>
+      <p>Powered by <a href="https://platform.openai.com/docs/guides/text-to-speech" target="_blank" rel="noopener">OpenAI</a></p>
     </footer>
   </div>
 

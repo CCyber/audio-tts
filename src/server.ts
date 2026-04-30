@@ -39,10 +39,10 @@ app.get("/", (_req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Fish Audio TTS server running on http://0.0.0.0:${PORT}`);
-  if (!process.env.FISH_AUDIO_API_KEY) {
+  console.log(`Aria TTS server running on http://0.0.0.0:${PORT}`);
+  if (!process.env.OPENAI_API_KEY) {
     console.warn(
-      "WARNING: FISH_AUDIO_API_KEY is not set. API calls will fail."
+      "WARNING: OPENAI_API_KEY is not set. API calls will fail."
     );
   }
 });

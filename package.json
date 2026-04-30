@@ -1,14 +1,14 @@
 {
-  "name": "fish-audio-tts",
+  "name": "aria-tts",
   "version": "1.0.0",
-  "description": "Web application for text-to-speech using the Fish Audio API",
+  "description": "Aria — text-to-speech web app powered by the OpenAI API",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc --project tsconfig.frontend.json && cp src/public/index.html src/public/style.css dist/public/",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts"
   },
-  "keywords": ["tts", "fish-audio", "text-to-speech"],
+  "keywords": ["tts", "openai", "text-to-speech"],
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
