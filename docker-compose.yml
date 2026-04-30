@@ -6,9 +6,10 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PORT=${PORT:-3000}
+      - ARIA_DATA_DIR=/app/data
     restart: unless-stopped
     volumes:
-      - tmp-data:/app/tmp
+      - aria-data:/app/data
 
 volumes:
-  tmp-data:
+  aria-data:

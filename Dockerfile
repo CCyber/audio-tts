@@ -38,8 +38,8 @@ COPY src/public/style.css ./dist/public/
 # Copy compiled frontend JS
 COPY --from=builder /app/dist/public/app.js ./dist/public/
 
-# Create tmp directory for generated audio files
-RUN mkdir -p /app/tmp && chown -R appuser:appgroup /app/tmp
+# Create data directory for generated audio files
+RUN mkdir -p /app/data/audio && chown -R appuser:appgroup /app/data
 
 USER appuser
 
