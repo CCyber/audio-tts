@@ -10,15 +10,18 @@ import { createWorker, type Worker } from "../../src/services/worker";
 let db: DB;
 let dataRoot: string;
 let worker: Worker;
+let originalFetch: typeof fetch;
 
 beforeEach(() => {
   db = openDb(":memory:");
   dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-worker-"));
   process.env.OPENAI_API_KEY = "test";
+  originalFetch = globalThis.fetch;
 });
 afterEach(() => {
   worker?.shutdown();
   fs.rmSync(dataRoot, { recursive: true, force: true });
+  globalThis.fetch = originalFetch;
 });
 
 function mockOpenAiOk() {

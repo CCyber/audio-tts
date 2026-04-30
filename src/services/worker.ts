@@ -66,6 +66,11 @@ export function createWorker(opts: WorkerOptions): Worker {
         const id = queue.shift()!;
         await processOne(id).catch((e) => {
           console.error(`worker: unexpected error on recording ${id}`, e);
+          try {
+            markRecordingFailed(opts.db, id, "Internal worker error");
+          } catch {
+            // best-effort; if even this fails, the recovery hook on next start will catch it.
+          }
         });
         const wake = completionWaiters.get(id);
         if (wake) {
@@ -120,6 +125,14 @@ export function createWorker(opts: WorkerOptions): Worker {
       );
     }
 
+    // Check cancel one final time after the last chunk's OpenAI call completes,
+    // before we commit the concat. Spec: "User clicks Cancel during last chunk:
+    // Worker still finishes that chunk's OpenAI call, then sees flag, then deletes everything."
+    if (cancelFlags.has(recordingId)) {
+      cancelFlags.delete(recordingId);
+      return;
+    }
+
     // All chunks done — concat into final file.
     const all = opts.db
       .prepare(
@@ -137,9 +150,10 @@ export function createWorker(opts: WorkerOptions): Worker {
     const finalName = `${uuidv4()}.mp3`;
 
     let finalRel: string;
+    let tempBuf: Buffer;
     try {
       // Concat first into a temp file under audio/, then rename.
-      const tempBuf = Buffer.concat(
+      tempBuf = Buffer.concat(
         inputAbs.map((p) => fs.readFileSync(p))
       ); // small enough — true streaming concat used for production volume comes via concatFiles in next refactor (Task 14).
       finalRel = writeAudioFile(opts.dataRoot, finalName, tempBuf);
@@ -152,9 +166,7 @@ export function createWorker(opts: WorkerOptions): Worker {
 
     let durationMs = 0;
     try {
-      durationMs = await measureDurationMs(
-        fs.readFileSync(path.join(opts.dataRoot, finalRel))
-      );
+      durationMs = await measureDurationMs(tempBuf);
     } catch {
       // measureDurationMs failures are non-fatal — leave duration at 0.
     }
@@ -162,7 +174,7 @@ export function createWorker(opts: WorkerOptions): Worker {
     opts.db.transaction(() => {
       markRecordingDone(opts.db, recordingId, {
         file_path: finalRel,
-        file_size: fs.statSync(path.join(opts.dataRoot, finalRel)).size,
+        file_size: tempBuf.length,
         duration_ms: durationMs,
       });
       opts.db
@@ -170,6 +182,7 @@ export function createWorker(opts: WorkerOptions): Worker {
         .run(recordingId);
     })();
     deleteChunkDir(opts.dataRoot, recordingId);
+    cancelFlags.delete(recordingId);
   }
 
   function enqueueAndAwait(id: number): Promise<void> {
