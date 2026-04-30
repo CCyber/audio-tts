@@ -111,25 +111,24 @@ export function recordingsRouter(deps: AppDeps): Router {
 
         const title = titleInput.trim() || deriveTitle(text, 50);
 
-        const inserted = insertRecording(deps.db, {
-          project_id: projectId,
-          title,
-          original_text: text.trim(),
-          voice,
-          model,
-          file_path: writtenRelativePath,
-          file_size: buffer.length,
-          duration_ms: durationMs,
-        });
+        const inserted = deps.db.transaction(() => {
+          const row = insertRecording(deps.db, {
+            project_id: projectId,
+            title,
+            original_text: text.trim(),
+            voice,
+            model,
+            file_path: writtenRelativePath,
+            file_size: buffer.length,
+            duration_ms: durationMs,
+          });
+          if (tags.length > 0) {
+            setTagsForRecording(deps.db, row.id, tags);
+          }
+          return row;
+        })();
 
-        if (tags.length > 0) {
-          setTagsForRecording(deps.db, inserted.id, tags);
-        }
-
-        const full = (await import("../services/recordings")).getRecording(
-          deps.db,
-          inserted.id
-        );
+        const full = getRecording(deps.db, inserted.id);
         res.status(201).json(full);
       } catch (e) {
         if (writtenRelativePath) {
