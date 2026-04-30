@@ -99,3 +99,29 @@ describe("worker failure path", () => {
     expect(fs.existsSync(path.join(dataRoot, "audio", "chunks", String(id), "0.mp3"))).toBe(true);
   });
 });
+
+describe("worker cancel", () => {
+  it("stops between chunks when cancel flag is set", async () => {
+    let activeId = 0;
+    let calls = 0;
+    globalThis.fetch = vi.fn(async () => {
+      calls++;
+      // After first chunk, ask the worker to cancel before the second starts.
+      if (calls === 1 && worker) worker.cancel(activeId);
+      return new Response(Buffer.from([1]), { status: 200 });
+    }) as any;
+
+    worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+    activeId = seedPending(["a", "b", "c"]);
+
+    await worker.enqueueAndAwait(activeId);
+
+    expect(calls).toBe(1); // second chunk never reached
+    const rec = getRecording(db, activeId);
+    // Worker leaves status='generating' on cancel; the cancel route is what
+    // deletes the row. Here we just verify the worker stopped without writing
+    // chunk 1 or finalizing.
+    expect(rec.status).toBe("generating");
+    expect(rec.progress_done).toBe(1);
+  });
+});
