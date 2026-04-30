@@ -1,12 +1,36 @@
 import { Router, type Request } from "express";
+import multer from "multer";
+import path from "path";
+import { v4 as uuidv4 } from "uuid";
 import type { AppDeps } from "../app";
 import {
   listRecordings,
   getRecording,
   updateRecording,
   deleteRecordingRow,
+  insertRecording,
 } from "../services/recordings";
-import { deleteAudioFile } from "../utils/storage";
+import { setTagsForRecording } from "../services/tags";
+import { generateTtsBuffer } from "../services/tts";
+import { writeAudioFile, deleteAudioFile } from "../utils/storage";
+import { measureDurationMs } from "../utils/audio";
+import { deriveTitle } from "../utils/title";
+import { ApiError } from "../utils/errors";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (
+      file.mimetype === "text/plain" ||
+      path.extname(file.originalname).toLowerCase() === ".txt"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .txt files are allowed"));
+    }
+  },
+});
 
 export function recordingsRouter(deps: AppDeps): Router {
   const router = Router();
@@ -61,6 +85,61 @@ export function recordingsRouter(deps: AppDeps): Router {
     }
   });
 
+  router.post(
+    "/",
+    upload.single("file"),
+    async (req: Request, res, next) => {
+      let writtenRelativePath: string | null = null;
+      try {
+        let text = String(req.body.text ?? "");
+        const voice = String(req.body.voice ?? "");
+        const model = String(req.body.model ?? "");
+        const projectIdRaw = req.body.project_id;
+        const projectId = projectIdRaw ? Number(projectIdRaw) : 1;
+        const titleInput = typeof req.body.title === "string" ? req.body.title : "";
+        const tags = parseTagsField(req.body.tags ?? req.body["tags[]"]);
+
+        if (req.file) {
+          text = req.file.buffer.toString("utf-8");
+        }
+
+        const buffer = await generateTtsBuffer({ text, voice, model });
+        const durationMs = await measureDurationMs(buffer);
+
+        const filename = `${uuidv4()}.mp3`;
+        writtenRelativePath = writeAudioFile(deps.dataRoot, filename, buffer);
+
+        const title = titleInput.trim() || deriveTitle(text, 50);
+
+        const inserted = insertRecording(deps.db, {
+          project_id: projectId,
+          title,
+          original_text: text.trim(),
+          voice,
+          model,
+          file_path: writtenRelativePath,
+          file_size: buffer.length,
+          duration_ms: durationMs,
+        });
+
+        if (tags.length > 0) {
+          setTagsForRecording(deps.db, inserted.id, tags);
+        }
+
+        const full = (await import("../services/recordings")).getRecording(
+          deps.db,
+          inserted.id
+        );
+        res.status(201).json(full);
+      } catch (e) {
+        if (writtenRelativePath) {
+          deleteAudioFile(deps.dataRoot, writtenRelativePath);
+        }
+        next(e);
+      }
+    }
+  );
+
   return router;
 }
 
@@ -76,4 +155,21 @@ function parseOptionalNumber(v: unknown): number | undefined {
     return Number.isFinite(n) ? n : undefined;
   }
   return undefined;
+}
+
+function parseTagsField(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((x) => String(x));
+  if (typeof raw === "string") {
+    if (raw.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+      } catch {
+        return [raw];
+      }
+    }
+    return [raw];
+  }
+  return [];
 }

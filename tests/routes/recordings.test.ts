@@ -1,5 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import os from "os";
+import fs from "fs";
+import path from "path";
 import { openDb, type DB } from "../../src/db";
 import { createApp } from "../../src/app";
 import { insertRecording } from "../../src/services/recordings";
@@ -7,10 +10,16 @@ import { setTagsForRecording } from "../../src/services/tags";
 
 let app: ReturnType<typeof createApp>;
 let db: DB;
+let dataRoot: string;
 
 beforeEach(() => {
   db = openDb(":memory:");
-  app = createApp({ db, dataRoot: "/tmp" });
+  dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-test-"));
+  app = createApp({ db, dataRoot });
+});
+
+afterEach(() => {
+  fs.rmSync(dataRoot, { recursive: true, force: true });
 });
 
 function seed(args: { title?: string; text?: string; projectId?: number } = {}) {
@@ -80,5 +89,25 @@ describe("/api/recordings (read/edit)", () => {
     expect(res.status).toBe(204);
     const get = await request(app).get(`/api/recordings/${r.id}`);
     expect(get.status).toBe(404);
+  });
+});
+
+describe("POST /api/recordings", () => {
+  it("creates a recording end-to-end with mocked OpenAI", async () => {
+    const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
+    globalThis.fetch = vi.fn(async () =>
+      new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
+    ) as any;
+    const res = await request(app)
+      .post("/api/recordings")
+      .field("text", "Hallo Welt")
+      .field("voice", "alloy")
+      .field("model", "tts-1")
+      .field("tags[]", "hello")
+      .field("tags[]", "test");
+    expect(res.status).toBe(201);
+    expect(res.body.title).toBe("Hallo Welt");
+    expect(res.body.duration_ms).toBeGreaterThan(0);
+    expect(res.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
   });
 });
