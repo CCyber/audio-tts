@@ -1,5 +1,5 @@
-import { api } from "./api";
-import { store } from "./state";
+import { api } from "./api.js";
+import { store } from "./state.js";
 
 interface PrefilledFields {
   text?: string;

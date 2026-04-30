@@ -1,8 +1,8 @@
-import { api } from "./api";
-import { store } from "./state";
-import { initSidebar } from "./sidebar";
-import { initLibrary } from "./library";
-import { initGenerateModal } from "./generate";
+import { api } from "./api.js";
+import { store } from "./state.js";
+import { initSidebar } from "./sidebar.js";
+import { initLibrary } from "./library.js";
+import { initGenerateModal } from "./generate.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   initSidebar();

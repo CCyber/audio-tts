@@ -1,6 +1,6 @@
-import { api } from "./api";
-import { store } from "./state";
-import { renderCard } from "./card";
+import { api } from "./api.js";
+import { store } from "./state.js";
+import { renderCard } from "./card.js";
 
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 

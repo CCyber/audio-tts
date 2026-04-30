@@ -1,4 +1,4 @@
-import type { Project, Recording, TagWithCount } from "./api";
+import type { Project, Recording, TagWithCount } from "./api.js";
 
 export interface AppState {
   projects: Project[];

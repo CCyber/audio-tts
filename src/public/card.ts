@@ -1,6 +1,6 @@
-import type { Recording } from "./api";
-import { api } from "./api";
-import { store } from "./state";
+import type { Recording } from "./api.js";
+import { api } from "./api.js";
+import { store } from "./state.js";
 
 export function renderCard(r: Recording): HTMLElement {
   const card = document.createElement("div");
