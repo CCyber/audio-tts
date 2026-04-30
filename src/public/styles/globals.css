@@ -375,3 +375,22 @@ h2 { font-size: 22px; font-weight: 700; margin: 0; }
 .home-greeting { padding: 0 var(--space-4); font-size: 28px; line-height: 1.2; }
 .section-header { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--space-4); margin-bottom: var(--space-2); }
 .see-all { font-size: 13px; color: var(--accent-from); font-weight: 500; }
+
+.proj-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+@media (min-width: 600px) { .proj-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .proj-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.form-input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+}

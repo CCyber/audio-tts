@@ -1,6 +1,29 @@
-import { useParams } from "@solidjs/router";
+import { For, Show, createMemo } from "solid-js";
+import { useNavigate, useParams } from "@solidjs/router";
 import { Header } from "../components/shell/Header";
+import { RecordingRow } from "../components/tile/RecordingRow";
+import { IconButton } from "../components/common/IconButton";
+import { libraryState } from "../stores/library";
+
 export function ProjectDetail() {
   const params = useParams();
-  return <><Header title={<span>Projekt {params.id}</span>} /><div style={{ padding: "var(--space-4)" }}>ProjectDetail {params.id} (TODO)</div></>;
+  const navigate = useNavigate();
+  const projectId = () => Number(params.id);
+  const project = createMemo(() => libraryState.projects.find((p) => p.id === projectId()));
+  const recordings = createMemo(() =>
+    [...libraryState.recordings].filter((r) => r.project_id === projectId()).sort((a, b) => b.created_at.localeCompare(a.created_at))
+  );
+
+  return (
+    <>
+      <Header
+        left={<IconButton icon="chevronLeft" label="Zurück" onClick={() => navigate("/projects")} />}
+        title={<Show when={project()}>{(p) => <span>{p().name}</span>}</Show>}
+      />
+      <div class="proj-detail-meta caption" style={{ padding: "0 var(--space-4) var(--space-3)" }}>
+        {project()?.recording_count ?? 0} Aufnahmen
+      </div>
+      <For each={recordings()}>{(r) => <RecordingRow recording={r} />}</For>
+    </>
+  );
 }
