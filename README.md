@@ -49,7 +49,9 @@ Verfügbare Stimmen: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
 - Tags für Cross-Cutting-Filter, case-insensitive
 - Volltextsuche über Title und Original-Text via FTS5
 - Inline-Player im Browser, Download optional
-- Automatisches Chunking langer Texte (> 4000 Zeichen)
+- Automatisches Chunking langer Texte (> 4000 Zeichen) mit Live-Fortschrittsanzeige
+- Asynchrone Generierung: lange Aufnahmen blockieren keine HTTP-Verbindung mehr (kein Reverse-Proxy-Timeout)
+- Resume bei Fehlern (z. B. Rate Limit) — bereits erzeugte Abschnitte werden nicht neu generiert
 
 ## API Dokumentation
 
@@ -61,10 +63,12 @@ Verfügbare Stimmen: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
 
 ### Aufnahmen
 - `GET /api/recordings?project_id=&tag=&q=&limit=&offset=` — Liste mit Filtern
-- `POST /api/recordings` — multipart oder JSON: `text`, `voice`, `model`, `project_id?`, `tags?`, `title?`, `file?`
-- `GET /api/recordings/:id` — Detail inkl. Tags
+- `POST /api/recordings` — multipart oder JSON: `text`, `voice`, `model`, `project_id?`, `tags?`, `title?`, `file?`. Antwortet `202 Accepted`; Generierung läuft asynchron, Fortschritt per Polling abrufen.
+- `POST /api/recordings/:id/cancel` — laufende Generierung abbrechen, Aufnahme verwerfen
+- `POST /api/recordings/:id/retry` — fehlgeschlagene Aufnahme erneut versuchen (nur fehlende Abschnitte)
+- `GET /api/recordings/:id` — Detail inkl. Tags, `status`, `progress_total`, `progress_done`, `error?`
 - `PATCH /api/recordings/:id` — Body kann enthalten: `title`, `project_id`, `tags`
-- `DELETE /api/recordings/:id` — Datei + DB-Eintrag
+- `DELETE /api/recordings/:id` — Datei + DB-Eintrag (bricht laufende Generierung erst ab)
 - `GET /api/recordings/:id/audio` — MP3 mit Range-Support für Inline-Player
 - `GET /api/recordings/:id/download` — MP3 mit Content-Disposition
 
