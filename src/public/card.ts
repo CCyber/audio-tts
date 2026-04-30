@@ -39,7 +39,7 @@ function renderGeneratingBody(r: Recording): HTMLElement {
 
   const status = document.createElement("div");
   status.className = "card-progress-status";
-  status.textContent = "Vertonung läuft…";
+  status.textContent = "Audio wird erstellt…";
   wrap.appendChild(status);
 
   const detail = document.createElement("div");
@@ -73,7 +73,7 @@ function renderFailedBody(r: Recording): HTMLElement {
 
   const banner = document.createElement("div");
   banner.className = "fail-banner";
-  banner.textContent = r.error ?? "Vertonung fehlgeschlagen";
+  banner.textContent = r.error ?? "Audio fehlgeschlagen";
   wrap.appendChild(banner);
 
   const actions = document.createElement("div");
