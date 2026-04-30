@@ -148,4 +148,38 @@ describe("audio + download", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-disposition"]).toMatch(/attachment/);
   });
+
+  it("GET /:id/audio honors Range requests with 206 Partial Content", async () => {
+    const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
+    globalThis.fetch = vi.fn(async () =>
+      new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
+    ) as any;
+    const created = (
+      await request(app)
+        .post("/api/recordings")
+        .field("text", "x")
+        .field("voice", "alloy")
+        .field("model", "tts-1")
+    ).body;
+
+    const res = await request(app)
+      .get(`/api/recordings/${created.id}/audio`)
+      .set("Range", "bytes=0-99");
+    expect(res.status).toBe(206);
+    expect(res.headers["content-range"]).toMatch(/^bytes 0-99\//);
+  });
+
+  it("POST /api/recordings rejects unknown project_id before calling OpenAI", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as any;
+    const res = await request(app)
+      .post("/api/recordings")
+      .field("text", "x")
+      .field("voice", "alloy")
+      .field("model", "tts-1")
+      .field("project_id", "999");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/project/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

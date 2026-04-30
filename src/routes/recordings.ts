@@ -103,6 +103,17 @@ export function recordingsRouter(deps: AppDeps): Router {
           text = req.file.buffer.toString("utf-8");
         }
 
+        // Validate project exists before paying for an OpenAI call.
+        if (!Number.isFinite(projectId)) {
+          throw new ApiError(400, "Invalid project_id");
+        }
+        const projectExists = deps.db
+          .prepare("SELECT id FROM projects WHERE id = ?")
+          .get(projectId);
+        if (!projectExists) {
+          throw new ApiError(400, `Project ${projectId} does not exist`);
+        }
+
         const buffer = await generateTtsBuffer({ text, voice, model });
         const durationMs = await measureDurationMs(buffer);
 
