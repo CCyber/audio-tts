@@ -12,7 +12,7 @@ import {
 } from "../services/recordings";
 import { setTagsForRecording } from "../services/tags";
 import { generateTtsBuffer } from "../services/tts";
-import { writeAudioFile, deleteAudioFile } from "../utils/storage";
+import { writeAudioFile, deleteAudioFile, audioPathFor } from "../utils/storage";
 import { measureDurationMs } from "../utils/audio";
 import { deriveTitle } from "../utils/title";
 import { ApiError } from "../utils/errors";
@@ -138,6 +138,27 @@ export function recordingsRouter(deps: AppDeps): Router {
       }
     }
   );
+
+  router.get("/:id/audio", (req, res, next) => {
+    try {
+      const rec = getRecording(deps.db, Number(req.params.id));
+      const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
+      res.type("audio/mpeg");
+      res.sendFile(fullPath);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.get("/:id/download", (req, res, next) => {
+    try {
+      const rec = getRecording(deps.db, Number(req.params.id));
+      const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
+      res.download(fullPath, `${rec.title.replace(/[^\w\-_.\s]/g, "_")}.mp3`);
+    } catch (e) {
+      next(e);
+    }
+  });
 
   return router;
 }

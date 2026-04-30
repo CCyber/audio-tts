@@ -111,3 +111,41 @@ describe("POST /api/recordings", () => {
     expect(res.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
   });
 });
+
+describe("audio + download", () => {
+  it("GET /:id/audio streams the file", async () => {
+    const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
+    globalThis.fetch = vi.fn(async () =>
+      new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
+    ) as any;
+    const created = (
+      await request(app)
+        .post("/api/recordings")
+        .field("text", "x")
+        .field("voice", "alloy")
+        .field("model", "tts-1")
+    ).body;
+
+    const res = await request(app).get(`/api/recordings/${created.id}/audio`);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/audio\/mpeg/);
+  });
+
+  it("GET /:id/download sets Content-Disposition", async () => {
+    const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
+    globalThis.fetch = vi.fn(async () =>
+      new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
+    ) as any;
+    const created = (
+      await request(app)
+        .post("/api/recordings")
+        .field("text", "x")
+        .field("voice", "alloy")
+        .field("model", "tts-1")
+    ).body;
+
+    const res = await request(app).get(`/api/recordings/${created.id}/download`);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-disposition"]).toMatch(/attachment/);
+  });
+});
