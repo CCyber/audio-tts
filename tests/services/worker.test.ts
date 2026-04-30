@@ -125,3 +125,34 @@ describe("worker cancel", () => {
     expect(rec.progress_done).toBe(1);
   });
 });
+
+describe("worker resume", () => {
+  it("regenerates only failed chunks on retry", async () => {
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      n++;
+      // chunks 0..2 succeed first time; chunk 3 fails first time, succeeds on retry round.
+      if (n === 4) return new Response("boom", { status: 400 });
+      return new Response(Buffer.from([7, 7]), { status: 200 });
+    });
+    globalThis.fetch = fetchMock as any;
+    worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+    const id = seedPending(["a", "b", "c", "d"]);
+
+    await worker.enqueueAndAwait(id);
+    expect(getRecording(db, id).status).toBe("failed");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    // Simulate the retry endpoint: reset failed chunk and progress_done.
+    const { resetFailedChunks } = await import("../../src/services/recording_chunks");
+    const { resetForRetry } = await import("../../src/services/recordings");
+    resetFailedChunks(db, id);
+    resetForRetry(db, id, 3);
+
+    await worker.enqueueAndAwait(id);
+
+    const rec = getRecording(db, id);
+    expect(rec.status).toBe("done");
+    expect(fetchMock).toHaveBeenCalledTimes(5); // only the failed chunk was re-fetched
+  });
+});
