@@ -63,3 +63,39 @@ describe("worker happy path", () => {
     expect(fs.existsSync(path.join(dataRoot, "audio", "chunks", String(id)))).toBe(false);
   });
 });
+
+describe("worker failure path", () => {
+  it("marks recording failed with error after retries exhausted", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response("nope", { status: 429 })
+    ) as any;
+    worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+    const id = seedPending(["a", "b"]);
+
+    await worker.enqueueAndAwait(id);
+
+    const rec = getRecording(db, id);
+    expect(rec.status).toBe("failed");
+    expect(rec.error).toMatch(/429/);
+    expect(rec.progress_done).toBe(0);
+  });
+
+  it("preserves done chunks when a later chunk fails", async () => {
+    let n = 0;
+    globalThis.fetch = vi.fn(async () => {
+      n++;
+      if (n <= 1) return new Response(Buffer.from([1, 2]), { status: 200 });
+      return new Response("boom", { status: 400 });
+    }) as any;
+    worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+    const id = seedPending(["good", "bad"]);
+
+    await worker.enqueueAndAwait(id);
+
+    const rec = getRecording(db, id);
+    expect(rec.status).toBe("failed");
+    expect(rec.progress_done).toBe(1);
+    // Chunk 0 file still on disk for resume.
+    expect(fs.existsSync(path.join(dataRoot, "audio", "chunks", String(id), "0.mp3"))).toBe(true);
+  });
+});
