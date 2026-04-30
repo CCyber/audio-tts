@@ -42,69 +42,39 @@ open http://localhost:3000
 
 Verfügbare Stimmen: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
 
-## API Dokumentation
-
-### `GET /health`
-
-Health-Check-Endpoint.
-
-### `GET /api/voices`
-
-Liefert die verfügbaren Stimmen.
-
-**Response:**
-```json
-{
-  "items": [
-    { "_id": "alloy", "title": "Alloy" },
-    { "_id": "echo",  "title": "Echo"  }
-  ]
-}
-```
-
-### `GET /api/models`
-
-Liefert die zugelassenen Modelle.
-
-**Response:**
-```json
-{ "items": ["tts-1", "gpt-4o-mini-tts"] }
-```
-
-### `POST /api/tts`
-
-Generiert eine MP3-Datei aus Text.
-
-**Request** (`multipart/form-data` oder `application/x-www-form-urlencoded`):
-
-| Feld            | Typ    | Beschreibung                                                   |
-|-----------------|--------|----------------------------------------------------------------|
-| `text`          | string | Der zu sprechende Text                                         |
-| `reference_id`  | string | ID der gewählten Stimme (z.B. `alloy`) — Alias: `voice`        |
-| `model`         | string | `tts-1` oder `gpt-4o-mini-tts`                                 |
-| `file`          | file   | Optional: `.txt`-Datei statt Textfeld                          |
-
-**Response:**
-```json
-{
-  "success": true,
-  "filename": "tts-uuid.mp3",
-  "size": 123456,
-  "chunks": 1,
-  "download_url": "/api/download/tts-uuid.mp3"
-}
-```
-
-### `GET /api/download/:filename`
-
-Lädt die generierte MP3-Datei herunter. Dateien werden nach dem Download automatisch gelöscht.
-
 ## Features
 
-- Automatisches Chunking langer Texte (> 4000 Zeichen pro Request)
-- Temporäre Dateien werden automatisch nach 5 Minuten oder nach dem Download gelöscht
-- Responsive Design
-- Fortschrittsanzeige während der Generierung
+- Persistente Speicherung aller Aufnahmen in SQLite + Filesystem
+- Projekte zur Gruppierung mit Default-"Inbox"
+- Tags für Cross-Cutting-Filter, case-insensitive
+- Volltextsuche über Title und Original-Text via FTS5
+- Inline-Player im Browser, Download optional
+- Automatisches Chunking langer Texte (> 4000 Zeichen)
+
+## API Dokumentation
+
+### Projekte
+- `GET /api/projects` — alle Projekte mit Aufnahmen-Count
+- `POST /api/projects` — Body `{ name }`
+- `PATCH /api/projects/:id` — Body `{ name }` (Inbox geschützt)
+- `DELETE /api/projects/:id` — Aufnahmen → Inbox, Projekt löschen (Inbox geschützt)
+
+### Aufnahmen
+- `GET /api/recordings?project_id=&tag=&q=&limit=&offset=` — Liste mit Filtern
+- `POST /api/recordings` — multipart oder JSON: `text`, `voice`, `model`, `project_id?`, `tags?`, `title?`, `file?`
+- `GET /api/recordings/:id` — Detail inkl. Tags
+- `PATCH /api/recordings/:id` — Body kann enthalten: `title`, `project_id`, `tags`
+- `DELETE /api/recordings/:id` — Datei + DB-Eintrag
+- `GET /api/recordings/:id/audio` — MP3 mit Range-Support für Inline-Player
+- `GET /api/recordings/:id/download` — MP3 mit Content-Disposition
+
+### Tags
+- `GET /api/tags` — alle Tags mit Count
+
+### Meta
+- `GET /api/voices` — verfügbare Stimmen
+- `GET /api/models` — zulässige Modelle
+- `GET /health` — Healthcheck
 
 ## Lokale Entwicklung (ohne Docker)
 
