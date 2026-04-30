@@ -43,6 +43,11 @@ export function createApp(deps: AppDeps): Express {
     res.sendFile(path.join(__dirname, "public", "index.html"));
   });
 
+  // SPA wildcard fallback — must be last so it doesn't shadow API routes
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  });
+
   // Centralized error handler
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ApiError) {

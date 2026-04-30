@@ -5,6 +5,8 @@ export interface Project {
   name: string;
   is_system: number;
   recording_count: number;
+  /** Reserved for future custom-color support (see Task 25 in redesign plan).
+      Backend currently never sends this; projectColor() falls back to a hash palette. */
   color?: string | null;
 }
 
