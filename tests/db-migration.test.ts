@@ -106,5 +106,35 @@ describe("DB migration v1 -> v2", () => {
     db1.close();
     const db2 = openDb(file);
     expect(db2.pragma("user_version", { simple: true })).toBe(2);
+
+    // Stronger: the migrated row must still be there, untouched.
+    const row = db2.prepare("SELECT id, title, status FROM recordings WHERE id = 1").get() as any;
+    expect(row).toEqual({ id: 1, title: "Old", status: "done" });
+  });
+
+  it("preserves recording_tags FK after table recreation", () => {
+    const file = makeOldDb();
+    // Add a tag + link in v1 BEFORE migration so the FK target is the old table.
+    const v1 = new Database(file);
+    v1.exec(`
+      INSERT INTO tags (name) VALUES ('legacy');
+      INSERT INTO recording_tags (recording_id, tag_id)
+        SELECT 1, id FROM tags WHERE name = 'legacy';
+    `);
+    v1.close();
+
+    const db = openDb(file);
+    // Tag link survived migration.
+    const before = db.prepare(
+      "SELECT COUNT(*) AS n FROM recording_tags WHERE recording_id = 1"
+    ).get() as { n: number };
+    expect(before.n).toBe(1);
+
+    // Cascade still fires when we delete the recording.
+    db.prepare("DELETE FROM recordings WHERE id = 1").run();
+    const after = db.prepare(
+      "SELECT COUNT(*) AS n FROM recording_tags WHERE recording_id = 1"
+    ).get() as { n: number };
+    expect(after.n).toBe(0);
   });
 });

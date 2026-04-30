@@ -30,90 +30,98 @@ function runMigrations(db: DB): void {
 
   if (currentVersion < 2) {
     migrateV1toV2(db);
-    db.pragma("user_version = 2");
   }
 }
 
 function migrateV1toV2(db: DB): void {
   // SQLite cannot drop NOT NULL via ALTER, so recreate the recordings table.
-  db.exec(`
-    PRAGMA foreign_keys = OFF;
-    BEGIN;
+  // PRAGMAs that affect transaction behavior must run *outside* the txn.
+  db.pragma("foreign_keys = OFF");
+  try {
+    db.exec("BEGIN");
+    try {
+      db.exec(`
+        -- Drop FTS triggers; the FTS table itself rebuilds from content.
+        DROP TRIGGER IF EXISTS recordings_ai;
+        DROP TRIGGER IF EXISTS recordings_ad;
+        DROP TRIGGER IF EXISTS recordings_au;
 
-    -- Drop FTS triggers; the FTS table itself rebuilds from content.
-    DROP TRIGGER IF EXISTS recordings_ai;
-    DROP TRIGGER IF EXISTS recordings_ad;
-    DROP TRIGGER IF EXISTS recordings_au;
+        CREATE TABLE recordings_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+          title TEXT NOT NULL,
+          original_text TEXT NOT NULL,
+          voice TEXT NOT NULL,
+          model TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'done',
+          progress_total INTEGER NOT NULL DEFAULT 0,
+          progress_done INTEGER NOT NULL DEFAULT 0,
+          error TEXT,
+          file_path TEXT UNIQUE,
+          file_size INTEGER,
+          duration_ms INTEGER,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
 
-    CREATE TABLE recordings_new (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
-      title TEXT NOT NULL,
-      original_text TEXT NOT NULL,
-      voice TEXT NOT NULL,
-      model TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'done',
-      progress_total INTEGER NOT NULL DEFAULT 0,
-      progress_done INTEGER NOT NULL DEFAULT 0,
-      error TEXT,
-      file_path TEXT UNIQUE,
-      file_size INTEGER,
-      duration_ms INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+        INSERT INTO recordings_new (
+          id, project_id, title, original_text, voice, model,
+          status, progress_total, progress_done, error,
+          file_path, file_size, duration_ms, created_at
+        )
+        SELECT id, project_id, title, original_text, voice, model,
+               'done', 1, 1, NULL,
+               file_path, file_size, duration_ms, created_at
+        FROM recordings;
 
-    INSERT INTO recordings_new (
-      id, project_id, title, original_text, voice, model,
-      status, progress_total, progress_done, error,
-      file_path, file_size, duration_ms, created_at
-    )
-    SELECT id, project_id, title, original_text, voice, model,
-           'done', 1, 1, NULL,
-           file_path, file_size, duration_ms, created_at
-    FROM recordings;
+        DROP TABLE recordings;
+        ALTER TABLE recordings_new RENAME TO recordings;
 
-    DROP TABLE recordings;
-    ALTER TABLE recordings_new RENAME TO recordings;
+        CREATE INDEX IF NOT EXISTS idx_recordings_project ON recordings(project_id);
+        CREATE INDEX IF NOT EXISTS idx_recordings_created ON recordings(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
 
-    CREATE INDEX IF NOT EXISTS idx_recordings_project ON recordings(project_id);
-    CREATE INDEX IF NOT EXISTS idx_recordings_created ON recordings(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
+        CREATE TABLE IF NOT EXISTS recording_chunks (
+          recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+          idx          INTEGER NOT NULL,
+          text         TEXT    NOT NULL,
+          status       TEXT    NOT NULL,
+          file_path    TEXT,
+          byte_size    INTEGER,
+          error        TEXT,
+          PRIMARY KEY (recording_id, idx)
+        );
+        CREATE INDEX IF NOT EXISTS idx_recording_chunks_status ON recording_chunks(recording_id, status);
 
-    CREATE TABLE IF NOT EXISTS recording_chunks (
-      recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
-      idx          INTEGER NOT NULL,
-      text         TEXT    NOT NULL,
-      status       TEXT    NOT NULL,
-      file_path    TEXT,
-      byte_size    INTEGER,
-      error        TEXT,
-      PRIMARY KEY (recording_id, idx)
-    );
-    CREATE INDEX IF NOT EXISTS idx_recording_chunks_status ON recording_chunks(recording_id, status);
+        -- Recreate FTS triggers (they were dropped above).
+        CREATE TRIGGER recordings_ai AFTER INSERT ON recordings BEGIN
+          INSERT INTO recordings_fts(rowid, title, original_text)
+          VALUES (new.id, new.title, new.original_text);
+        END;
+        CREATE TRIGGER recordings_ad AFTER DELETE ON recordings BEGIN
+          INSERT INTO recordings_fts(recordings_fts, rowid, title, original_text)
+          VALUES('delete', old.id, old.title, old.original_text);
+        END;
+        CREATE TRIGGER recordings_au AFTER UPDATE ON recordings BEGIN
+          INSERT INTO recordings_fts(recordings_fts, rowid, title, original_text)
+          VALUES('delete', old.id, old.title, old.original_text);
+          INSERT INTO recordings_fts(rowid, title, original_text)
+          VALUES (new.id, new.title, new.original_text);
+        END;
 
-    -- Recreate FTS triggers (they were dropped above).
-    CREATE TRIGGER recordings_ai AFTER INSERT ON recordings BEGIN
-      INSERT INTO recordings_fts(rowid, title, original_text)
-      VALUES (new.id, new.title, new.original_text);
-    END;
-    CREATE TRIGGER recordings_ad AFTER DELETE ON recordings BEGIN
-      INSERT INTO recordings_fts(recordings_fts, rowid, title, original_text)
-      VALUES('delete', old.id, old.title, old.original_text);
-    END;
-    CREATE TRIGGER recordings_au AFTER UPDATE ON recordings BEGIN
-      INSERT INTO recordings_fts(recordings_fts, rowid, title, original_text)
-      VALUES('delete', old.id, old.title, old.original_text);
-      INSERT INTO recordings_fts(rowid, title, original_text)
-      VALUES (new.id, new.title, new.original_text);
-    END;
+        -- Rebuild FTS from content table (rows survived the swap, but the
+        -- 'content_rowid' bond is by table name + rowid, which we preserved).
+        INSERT INTO recordings_fts(recordings_fts) VALUES('rebuild');
+      `);
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
 
-    -- Rebuild FTS from content table (rows survived the swap, but the
-    -- 'content_rowid' bond is by table name + rowid, which we preserved).
-    INSERT INTO recordings_fts(recordings_fts) VALUES('rebuild');
-
-    COMMIT;
-    PRAGMA foreign_keys = ON;
-  `);
+  db.pragma("user_version = 2");
 }
 
 function seedInbox(db: DB): void {
