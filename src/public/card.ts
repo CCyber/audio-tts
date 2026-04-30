@@ -182,7 +182,8 @@ function renderAudio(r: Recording): HTMLElement {
   return wrap;
 }
 
-function formatDuration(ms: number): string {
+function formatDuration(ms: number | null): string {
+  if (ms === null) return "--:--";
   const total = Math.round(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
