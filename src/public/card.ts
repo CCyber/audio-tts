@@ -1,17 +1,142 @@
 import type { Recording } from "./api.js";
 import { api } from "./api.js";
 import { store } from "./state.js";
+import { register as registerPolling } from "./polling.js";
 
 export function renderCard(r: Recording): HTMLElement {
   const card = document.createElement("div");
-  card.className = "card";
+  card.className = `card card-status-${r.status}`;
+  card.dataset.recordingId = String(r.id);
 
+  if (r.status === "generating") {
+    card.appendChild(renderHeader(r));
+    card.appendChild(renderGeneratingBody(r));
+    registerPolling(r.id);
+    return card;
+  }
+  if (r.status === "failed") {
+    card.appendChild(renderHeader(r));
+    card.appendChild(renderFailedBody(r));
+    return card;
+  }
+  // done
   card.appendChild(renderHeader(r));
   card.appendChild(renderMeta(r));
   card.appendChild(renderTags(r));
   card.appendChild(renderAudio(r));
-
   return card;
+}
+
+function renderGeneratingBody(r: Recording): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "card-generating";
+
+  const bar = document.createElement("progress");
+  bar.value = r.progress_done;
+  bar.max = r.progress_total || 1;
+  bar.className = "progress-bar";
+  wrap.appendChild(bar);
+
+  const status = document.createElement("div");
+  status.className = "card-progress-status";
+  status.textContent = "Vertonung läuft…";
+  wrap.appendChild(status);
+
+  const detail = document.createElement("div");
+  detail.className = "card-progress-detail";
+  detail.textContent = formatProgressDetail(r);
+  wrap.appendChild(detail);
+
+  const cancel = document.createElement("button");
+  cancel.className = "btn-ghost";
+  cancel.textContent = "Abbrechen";
+  cancel.addEventListener("click", async () => {
+    cancel.disabled = true;
+    cancel.textContent = "Wird abgebrochen…";
+    try {
+      await api.cancelRecording(r.id);
+      document.dispatchEvent(new CustomEvent("aria:reload-recordings"));
+    } catch (e) {
+      cancel.disabled = false;
+      cancel.textContent = "Abbrechen";
+      alert((e as Error).message);
+    }
+  });
+  wrap.appendChild(cancel);
+
+  return wrap;
+}
+
+function renderFailedBody(r: Recording): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "card-failed";
+
+  const banner = document.createElement("div");
+  banner.className = "fail-banner";
+  banner.textContent = r.error ?? "Vertonung fehlgeschlagen";
+  wrap.appendChild(banner);
+
+  const actions = document.createElement("div");
+  actions.className = "card-failed-actions";
+
+  const retry = document.createElement("button");
+  retry.className = "btn-primary";
+  retry.textContent = "Erneut versuchen";
+  retry.addEventListener("click", async () => {
+    retry.disabled = true;
+    try {
+      const updated = await api.retryRecording(r.id);
+      registerPolling(updated.id);
+      document.dispatchEvent(new CustomEvent("aria:reload-recordings"));
+    } catch (e) {
+      retry.disabled = false;
+      alert((e as Error).message);
+    }
+  });
+  actions.appendChild(retry);
+
+  const del = document.createElement("button");
+  del.className = "btn-ghost";
+  del.textContent = "Löschen";
+  del.addEventListener("click", async () => {
+    if (!confirm(`Aufnahme "${r.title}" wirklich löschen?`)) return;
+    await api.deleteRecording(r.id);
+    document.dispatchEvent(new CustomEvent("aria:reload-recordings"));
+  });
+  actions.appendChild(del);
+
+  wrap.appendChild(actions);
+  return wrap;
+}
+
+function formatProgressDetail(r: Recording): string {
+  // "Abschnitt 3 von 8" — 1-based, the chunk currently being worked on.
+  const current = Math.min(r.progress_done + 1, r.progress_total);
+  return `Abschnitt ${current} von ${r.progress_total}`;
+}
+
+export function applyRecordingUpdate(r: Recording): void {
+  const el = document.querySelector<HTMLElement>(
+    `.card[data-recording-id="${r.id}"]`
+  );
+  if (!el) return;
+
+  if (el.classList.contains(`card-status-${r.status}`)) {
+    // Same status, just update progress bar + detail.
+    if (r.status === "generating") {
+      const bar = el.querySelector<HTMLProgressElement>("progress.progress-bar");
+      const detail = el.querySelector<HTMLElement>(".card-progress-detail");
+      if (bar) {
+        bar.value = r.progress_done;
+        bar.max = r.progress_total || 1;
+      }
+      if (detail) detail.textContent = formatProgressDetail(r);
+    }
+    return;
+  }
+  // Status changed — replace the card entirely.
+  const fresh = renderCard(r);
+  el.replaceWith(fresh);
 }
 
 function renderHeader(r: Recording): HTMLElement {
