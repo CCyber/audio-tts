@@ -8,11 +8,16 @@ import {
   updateRecording,
   deleteRecordingRow,
   insertPendingRecording,
+  resetForRetry,
 } from "../services/recordings";
 import { setTagsForRecording } from "../services/tags";
 import { splitTextIntoChunks } from "../services/tts";
-import { insertChunks } from "../services/recording_chunks";
-import { deleteAudioFile, audioPathFor } from "../utils/storage";
+import {
+  insertChunks,
+  resetFailedChunks,
+  countDoneChunks,
+} from "../services/recording_chunks";
+import { deleteAudioFile, audioPathFor, deleteChunkDir } from "../utils/storage";
 import { deriveTitle } from "../utils/title";
 import { ApiError } from "../utils/errors";
 
@@ -76,11 +81,58 @@ export function recordingsRouter(deps: AppDeps): Router {
 
   router.delete("/:id", (req, res, next) => {
     try {
-      const filePath = deleteRecordingRow(deps.db, Number(req.params.id));
-      if (filePath) {
-        deleteAudioFile(deps.dataRoot, filePath);
+      const id = Number(req.params.id);
+      const rec = getRecording(deps.db, id);
+      if (rec.status === "generating") {
+        deps.worker.cancel(id);
       }
+      const filePath = deleteRecordingRow(deps.db, id);
+      if (filePath) deleteAudioFile(deps.dataRoot, filePath);
+      deleteChunkDir(deps.dataRoot, id);
       res.status(204).end();
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post("/:id/cancel", (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const rec = getRecording(deps.db, id); // throws 404
+      if (rec.status !== "generating") {
+        throw new ApiError(409, "Recording is not generating");
+      }
+
+      deps.worker.cancel(id);
+
+      // Worker will see the flag at the next chunk boundary. We delete the row +
+      // chunk dir now: ON DELETE CASCADE removes recording_chunks. Any in-flight
+      // chunk write will land in a now-stale dir; we sweep it on the next line.
+      const filePath = rec.file_path;
+      deps.db.prepare("DELETE FROM recordings WHERE id = ?").run(id);
+      if (filePath) deleteAudioFile(deps.dataRoot, filePath);
+      deleteChunkDir(deps.dataRoot, id);
+
+      res.status(204).end();
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post("/:id/retry", (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const rec = getRecording(deps.db, id);
+      if (rec.status !== "failed") {
+        throw new ApiError(409, "Recording is not in failed state");
+      }
+      const doneCount = countDoneChunks(deps.db, id);
+      deps.db.transaction(() => {
+        resetFailedChunks(deps.db, id);
+        resetForRetry(deps.db, id, doneCount);
+      })();
+      deps.worker.enqueue(id);
+      res.status(200).json(getRecording(deps.db, id));
     } catch (e) {
       next(e);
     }

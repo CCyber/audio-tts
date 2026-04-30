@@ -13,17 +13,20 @@ let app: ReturnType<typeof createApp>;
 let db: DB;
 let dataRoot: string;
 let worker: Worker;
+let originalFetch: typeof fetch;
 
 beforeEach(() => {
   db = openDb(":memory:");
   dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-test-"));
   worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
   app = createApp({ db, dataRoot, worker });
+  originalFetch = globalThis.fetch;
 });
 
 afterEach(() => {
   worker.shutdown();
   fs.rmSync(dataRoot, { recursive: true, force: true });
+  globalThis.fetch = originalFetch;
 });
 
 function seed(args: { title?: string; text?: string; projectId?: number } = {}) {
@@ -198,5 +201,76 @@ describe("audio + download", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/project/i);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancel and retry endpoints", () => {
+  it("POST /:id/cancel deletes a generating recording + chunk files", async () => {
+    // Block fetch so the worker doesn't finish before we cancel.
+    let resolveFetch: (r: Response) => void;
+    globalThis.fetch = vi.fn(
+      () => new Promise<Response>((res) => { resolveFetch = res; })
+    ) as any;
+
+    const created = (await request(app)
+      .post("/api/recordings")
+      .field("text", "x".repeat(8000)) // 2 chunks
+      .field("voice", "alloy")
+      .field("model", "tts-1")).body;
+
+    expect(created.status).toBe("generating");
+
+    const cancelled = await request(app).post(`/api/recordings/${created.id}/cancel`);
+    expect(cancelled.status).toBe(204);
+
+    // Allow the in-flight fetch to resolve so the worker observes cancel.
+    resolveFetch!(new Response(Buffer.from([1]), { status: 200 }));
+    await worker.enqueueAndAwait(created.id);
+
+    const after = await request(app).get(`/api/recordings/${created.id}`);
+    expect(after.status).toBe(404);
+    expect(fs.existsSync(path.join(dataRoot, "audio", "chunks", String(created.id)))).toBe(false);
+  });
+
+  it("POST /:id/cancel returns 409 if not generating", async () => {
+    const r = seed();
+    db.prepare("UPDATE recordings SET status='done' WHERE id=?").run(r.id);
+    const res = await request(app).post(`/api/recordings/${r.id}/cancel`);
+    expect(res.status).toBe(409);
+  });
+
+  it("POST /:id/retry resets failed chunks and re-enqueues", async () => {
+    let n = 0;
+    globalThis.fetch = vi.fn(async () => {
+      n++;
+      if (n === 2) return new Response("boom", { status: 400 });
+      return new Response(Buffer.from([1, 2]), { status: 200 });
+    }) as any;
+
+    const created = (await request(app).post("/api/recordings")
+      .field("text", "x".repeat(8000))
+      .field("voice", "alloy")
+      .field("model", "tts-1")).body;
+    await worker.enqueueAndAwait(created.id);
+
+    expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("failed");
+
+    // Make the next attempt succeed.
+    globalThis.fetch = vi.fn(async () =>
+      new Response(Buffer.from([1, 2]), { status: 200 })
+    ) as any;
+
+    const retry = await request(app).post(`/api/recordings/${created.id}/retry`);
+    expect(retry.status).toBe(200);
+    expect(retry.body.status).toBe("generating");
+
+    await worker.enqueueAndAwait(created.id);
+    expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("done");
+  });
+
+  it("POST /:id/retry returns 409 if not failed", async () => {
+    const r = seed();
+    const res = await request(app).post(`/api/recordings/${r.id}/retry`);
+    expect(res.status).toBe(409);
   });
 });

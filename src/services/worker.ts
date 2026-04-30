@@ -94,6 +94,9 @@ export function createWorker(opts: WorkerOptions): Worker {
     for (const chunk of pending) {
       if (cancelFlags.has(recordingId)) {
         cancelFlags.delete(recordingId);
+        // Sweep any chunk file the worker may have written between the cancel
+        // handler's deleteChunkDir and now (race when cancel arrives mid-fetch).
+        deleteChunkDir(opts.dataRoot, recordingId);
         return; // Cancel handler has already / will delete the row.
       }
 
@@ -130,6 +133,7 @@ export function createWorker(opts: WorkerOptions): Worker {
     // Worker still finishes that chunk's OpenAI call, then sees flag, then deletes everything."
     if (cancelFlags.has(recordingId)) {
       cancelFlags.delete(recordingId);
+      deleteChunkDir(opts.dataRoot, recordingId);
       return;
     }
 
