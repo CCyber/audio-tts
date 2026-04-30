@@ -2,6 +2,8 @@ import type { DB } from "../db";
 import { ApiError } from "../utils/errors";
 import { setTagsForRecording, getTagsForRecording, type Tag } from "./tags";
 
+export type RecordingStatus = "generating" | "done" | "failed";
+
 export interface RecordingRow {
   id: number;
   project_id: number;
@@ -9,9 +11,13 @@ export interface RecordingRow {
   original_text: string;
   voice: string;
   model: string;
-  file_path: string;
-  file_size: number;
-  duration_ms: number;
+  status: RecordingStatus;
+  progress_total: number;
+  progress_done: number;
+  error: string | null;
+  file_path: string | null;
+  file_size: number | null;
+  duration_ms: number | null;
   created_at: string;
 }
 
@@ -25,9 +31,20 @@ export interface InsertInput {
   original_text: string;
   voice: string;
   model: string;
+  // For sync inserts (tests, legacy code path) — status defaults to 'done'.
+  // For pending inserts use insertPendingRecording.
   file_path: string;
   file_size: number;
   duration_ms: number;
+}
+
+export interface InsertPendingInput {
+  project_id: number;
+  title: string;
+  original_text: string;
+  voice: string;
+  model: string;
+  progress_total: number;
 }
 
 export interface ListFilters {
@@ -48,8 +65,10 @@ export function insertRecording(db: DB, input: InsertInput): RecordingRow {
   const r = db
     .prepare(
       `INSERT INTO recordings
-        (project_id, title, original_text, voice, model, file_path, file_size, duration_ms)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        (project_id, title, original_text, voice, model,
+         status, progress_total, progress_done, error,
+         file_path, file_size, duration_ms)
+       VALUES (?, ?, ?, ?, ?, 'done', 1, 1, NULL, ?, ?, ?)`
     )
     .run(
       input.project_id,
@@ -65,6 +84,78 @@ export function insertRecording(db: DB, input: InsertInput): RecordingRow {
   return db
     .prepare("SELECT * FROM recordings WHERE id = ?")
     .get(id) as RecordingRow;
+}
+
+export function insertPendingRecording(
+  db: DB,
+  input: InsertPendingInput
+): RecordingRow {
+  const r = db
+    .prepare(
+      `INSERT INTO recordings
+        (project_id, title, original_text, voice, model,
+         status, progress_total, progress_done, error,
+         file_path, file_size, duration_ms)
+       VALUES (?, ?, ?, ?, ?, 'generating', ?, 0, NULL, NULL, NULL, NULL)`
+    )
+    .run(
+      input.project_id,
+      input.title,
+      input.original_text,
+      input.voice,
+      input.model,
+      input.progress_total
+    );
+  const id = Number(r.lastInsertRowid);
+  return db
+    .prepare("SELECT * FROM recordings WHERE id = ?")
+    .get(id) as RecordingRow;
+}
+
+export function markRecordingDone(
+  db: DB,
+  id: number,
+  patch: { file_path: string; file_size: number; duration_ms: number }
+): void {
+  db.prepare(
+    `UPDATE recordings
+        SET status = 'done',
+            file_path = ?,
+            file_size = ?,
+            duration_ms = ?,
+            error = NULL
+      WHERE id = ?`
+  ).run(patch.file_path, patch.file_size, patch.duration_ms, id);
+}
+
+export function markRecordingFailed(
+  db: DB,
+  id: number,
+  message: string
+): void {
+  db.prepare(
+    "UPDATE recordings SET status = 'failed', error = ? WHERE id = ?"
+  ).run(message, id);
+}
+
+export function incrementProgressDone(db: DB, id: number): void {
+  db.prepare(
+    "UPDATE recordings SET progress_done = progress_done + 1 WHERE id = ?"
+  ).run(id);
+}
+
+export function resetForRetry(
+  db: DB,
+  id: number,
+  newProgressDone: number
+): void {
+  db.prepare(
+    `UPDATE recordings
+        SET status = 'generating',
+            progress_done = ?,
+            error = NULL
+      WHERE id = ?`
+  ).run(newProgressDone, id);
 }
 
 export function listRecordings(db: DB, filters: ListFilters): Recording[] {
@@ -158,7 +249,7 @@ export function updateRecording(db: DB, id: number, input: UpdateInput): Recordi
   return getRecording(db, id);
 }
 
-export function deleteRecordingRow(db: DB, id: number): string {
+export function deleteRecordingRow(db: DB, id: number): string | null {
   const existing = getRecording(db, id);
   db.prepare("DELETE FROM recordings WHERE id = ?").run(id);
   return existing.file_path;

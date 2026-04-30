@@ -120,3 +120,41 @@ describe("recordings service", () => {
     expect(() => getRecording(db, r.id)).toThrowError(ApiError);
   });
 });
+
+describe("recordings status fields", () => {
+  let db: DB;
+  beforeEach(() => {
+    db = openDb(":memory:");
+  });
+
+  it("insertRecording defaults status='done' and progress=1/1", () => {
+    const row = insertRecording(db, {
+      project_id: 1,
+      title: "T",
+      original_text: "x",
+      voice: "alloy",
+      model: "tts-1",
+      file_path: "audio/x.mp3",
+      file_size: 100,
+      duration_ms: 500,
+    });
+    const fetched = getRecording(db, row.id);
+    expect(fetched.status).toBe("done");
+    expect(fetched.progress_total).toBe(1);
+    expect(fetched.progress_done).toBe(1);
+    expect(fetched.error).toBeNull();
+  });
+
+  it("can insert a pending recording with NULL file_path", () => {
+    const r = db
+      .prepare(
+        `INSERT INTO recordings (project_id, title, original_text, voice, model,
+                                 status, progress_total, progress_done)
+         VALUES (1, 'P', 'hi', 'alloy', 'tts-1', 'generating', 5, 0)`
+      )
+      .run();
+    const fetched = getRecording(db, Number(r.lastInsertRowid));
+    expect(fetched.status).toBe("generating");
+    expect(fetched.file_path).toBeNull();
+  });
+});

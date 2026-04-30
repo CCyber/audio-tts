@@ -78,7 +78,9 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.delete("/:id", (req, res, next) => {
     try {
       const filePath = deleteRecordingRow(deps.db, Number(req.params.id));
-      deleteAudioFile(deps.dataRoot, filePath);
+      if (filePath) {
+        deleteAudioFile(deps.dataRoot, filePath);
+      }
       res.status(204).end();
     } catch (e) {
       next(e);
@@ -154,6 +156,10 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.get("/:id/audio", (req, res, next) => {
     try {
       const rec = getRecording(deps.db, Number(req.params.id));
+      // TODO Task 14: proper guard for status !== "done" / null file_path
+      if (!rec.file_path) {
+        throw new ApiError(404, "Audio not yet available");
+      }
       const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
       res.type("audio/mpeg");
       res.sendFile(fullPath);
@@ -165,6 +171,10 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.get("/:id/download", (req, res, next) => {
     try {
       const rec = getRecording(deps.db, Number(req.params.id));
+      // TODO Task 14: proper guard for status !== "done" / null file_path
+      if (!rec.file_path) {
+        throw new ApiError(404, "Audio not yet available");
+      }
       const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
       res.download(fullPath, `${rec.title.replace(/[^\w\-_.\s]/g, "_")}.mp3`);
     } catch (e) {
