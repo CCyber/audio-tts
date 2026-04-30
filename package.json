@@ -4,7 +4,7 @@
   "description": "Aria — text-to-speech web app powered by the OpenAI API",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && tsc --project tsconfig.frontend.json && cp src/public/index.html src/public/style.css dist/public/",
+    "build": "tsc && tsc --project tsconfig.frontend.json && cp src/public/index.html src/public/style.css dist/public/ && cp src/db/schema.sql dist/db/",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "test": "vitest run",
