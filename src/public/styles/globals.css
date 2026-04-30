@@ -394,3 +394,12 @@ h2 { font-size: 22px; font-weight: 700; margin: 0; }
   color: var(--text);
   font-size: 15px;
 }
+
+.search-recent {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--separator);
+  font-size: 15px;
+}
