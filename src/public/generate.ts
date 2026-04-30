@@ -95,7 +95,7 @@ function open(prefilled: PrefilledFields): void {
 
   textEl.value = prefilled.text ?? "";
   titleEl.value = prefilled.title ?? "";
-  if (prefilled.voice) voiceEl.value = prefilled.voice;
+  voiceEl.value = prefilled.voice ?? "nova";
   if (prefilled.model) modelEl.value = prefilled.model;
   projectEl.value = String(store.state.selectedProjectId);
   tagsEl.value = (prefilled.tags ?? []).join(", ");
