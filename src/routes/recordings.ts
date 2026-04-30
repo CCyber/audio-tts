@@ -1,19 +1,18 @@
 import { Router, type Request } from "express";
 import multer from "multer";
 import path from "path";
-import { v4 as uuidv4 } from "uuid";
 import type { AppDeps } from "../app";
 import {
   listRecordings,
   getRecording,
   updateRecording,
   deleteRecordingRow,
-  insertRecording,
+  insertPendingRecording,
 } from "../services/recordings";
 import { setTagsForRecording } from "../services/tags";
-import { generateTtsBuffer } from "../services/tts";
-import { writeAudioFile, deleteAudioFile, audioPathFor } from "../utils/storage";
-import { measureDurationMs } from "../utils/audio";
+import { splitTextIntoChunks } from "../services/tts";
+import { insertChunks } from "../services/recording_chunks";
+import { deleteAudioFile, audioPathFor } from "../utils/storage";
 import { deriveTitle } from "../utils/title";
 import { ApiError } from "../utils/errors";
 
@@ -90,8 +89,7 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.post(
     "/",
     upload.single("file"),
-    async (req: Request, res, next) => {
-      let writtenRelativePath: string | null = null;
+    (req: Request, res, next) => {
       try {
         let text = String(req.body.text ?? "");
         const voice = String(req.body.voice ?? "");
@@ -105,10 +103,14 @@ export function recordingsRouter(deps: AppDeps): Router {
           text = req.file.buffer.toString("utf-8");
         }
 
-        // Validate project exists before paying for an OpenAI call.
-        if (!Number.isFinite(projectId)) {
-          throw new ApiError(400, "Invalid project_id");
+        if (!text.trim()) throw new ApiError(400, "No text provided");
+        if (!Number.isFinite(projectId)) throw new ApiError(400, "Invalid project_id");
+
+        // Pre-flight key check so the user gets immediate feedback in the modal.
+        if (!process.env.OPENAI_API_KEY) {
+          throw new ApiError(500, "OPENAI_API_KEY is not configured");
         }
+
         const projectExists = deps.db
           .prepare("SELECT id FROM projects WHERE id = ?")
           .get(projectId);
@@ -116,38 +118,29 @@ export function recordingsRouter(deps: AppDeps): Router {
           throw new ApiError(400, `Project ${projectId} does not exist`);
         }
 
-        const buffer = await generateTtsBuffer({ text, voice, model });
-        const durationMs = await measureDurationMs(buffer);
-
-        const filename = `${uuidv4()}.mp3`;
-        const filePath = writeAudioFile(deps.dataRoot, filename, buffer);
-        writtenRelativePath = filePath;
+        const chunks = splitTextIntoChunks(text.trim(), 4000);
+        if (chunks.length === 0) throw new ApiError(400, "No text provided");
 
         const title = titleInput.trim() || deriveTitle(text, 50);
 
         const inserted = deps.db.transaction(() => {
-          const row = insertRecording(deps.db, {
+          const row = insertPendingRecording(deps.db, {
             project_id: projectId,
             title,
             original_text: text.trim(),
             voice,
             model,
-            file_path: filePath,
-            file_size: buffer.length,
-            duration_ms: durationMs,
+            progress_total: chunks.length,
           });
-          if (tags.length > 0) {
-            setTagsForRecording(deps.db, row.id, tags);
-          }
+          insertChunks(deps.db, row.id, chunks);
+          if (tags.length > 0) setTagsForRecording(deps.db, row.id, tags);
           return row;
         })();
 
+        deps.worker.enqueue(inserted.id);
         const full = getRecording(deps.db, inserted.id);
-        res.status(201).json(full);
+        res.status(202).json(full);
       } catch (e) {
-        if (writtenRelativePath) {
-          deleteAudioFile(deps.dataRoot, writtenRelativePath);
-        }
         next(e);
       }
     }

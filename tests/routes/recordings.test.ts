@@ -7,18 +7,22 @@ import { openDb, type DB } from "../../src/db";
 import { createApp } from "../../src/app";
 import { insertRecording } from "../../src/services/recordings";
 import { setTagsForRecording } from "../../src/services/tags";
+import { createWorker, type Worker } from "../../src/services/worker";
 
 let app: ReturnType<typeof createApp>;
 let db: DB;
 let dataRoot: string;
+let worker: Worker;
 
 beforeEach(() => {
   db = openDb(":memory:");
   dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-test-"));
-  app = createApp({ db, dataRoot });
+  worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+  app = createApp({ db, dataRoot, worker });
 });
 
 afterEach(() => {
+  worker.shutdown();
   fs.rmSync(dataRoot, { recursive: true, force: true });
 });
 
@@ -93,11 +97,12 @@ describe("/api/recordings (read/edit)", () => {
 });
 
 describe("POST /api/recordings", () => {
-  it("creates a recording end-to-end with mocked OpenAI", async () => {
+  it("submits a recording and worker finishes it asynchronously", async () => {
     const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
     globalThis.fetch = vi.fn(async () =>
       new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
     ) as any;
+
     const res = await request(app)
       .post("/api/recordings")
       .field("text", "Hallo Welt")
@@ -105,10 +110,19 @@ describe("POST /api/recordings", () => {
       .field("model", "tts-1")
       .field("tags[]", "hello")
       .field("tags[]", "test");
-    expect(res.status).toBe(201);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("generating");
+    expect(res.body.progress_total).toBeGreaterThanOrEqual(1);
+    expect(res.body.file_path).toBeNull();
     expect(res.body.title).toBe("Hallo Welt");
-    expect(res.body.duration_ms).toBeGreaterThan(0);
-    expect(res.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
+
+    await worker.enqueueAndAwait(res.body.id);
+
+    const after = await request(app).get(`/api/recordings/${res.body.id}`);
+    expect(after.body.status).toBe("done");
+    expect(after.body.duration_ms).toBeGreaterThan(0);
+    expect(after.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
   });
 });
 
@@ -125,6 +139,7 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app).get(`/api/recordings/${created.id}/audio`);
     expect(res.status).toBe(200);
@@ -143,6 +158,7 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app).get(`/api/recordings/${created.id}/download`);
     expect(res.status).toBe(200);
@@ -161,6 +177,7 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app)
       .get(`/api/recordings/${created.id}/audio`)
