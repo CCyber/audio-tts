@@ -4,10 +4,13 @@ import solid from "vite-plugin-solid";
 export default defineConfig({
   plugins: [solid()],
   test: {
-    environment: "jsdom",
+    environment: "node",
     globals: true,
-    setupFiles: [],
+    setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
+    environmentMatchGlobs: [
+      ["tests/public/**", "jsdom"],
+    ],
   },
   resolve: {
     conditions: ["development", "browser"],
