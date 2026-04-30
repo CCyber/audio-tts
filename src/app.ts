@@ -6,6 +6,7 @@ import { ApiError } from "./utils/errors";
 import { projectsRouter } from "./routes/projects";
 import { tagsRouter } from "./routes/tags";
 import { recordingsRouter } from "./routes/recordings";
+import { metaRouter } from "./routes/tts";
 
 export interface AppDeps {
   db: DB;
@@ -32,6 +33,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api/projects", projectsRouter(deps));
   app.use("/api/tags", tagsRouter(deps));
   app.use("/api/recordings", recordingsRouter(deps));
+  app.use("/api", metaRouter());
 
   // Static frontend
   app.use(express.static(path.join(__dirname, "public")));
