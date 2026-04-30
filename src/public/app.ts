@@ -1,9 +1,11 @@
 import { api } from "./api";
 import { store } from "./state";
 import { initSidebar } from "./sidebar";
+import { initLibrary } from "./library";
 
 document.addEventListener("DOMContentLoaded", async () => {
   initSidebar();
+  initLibrary();
   await loadInitial();
 });
 
