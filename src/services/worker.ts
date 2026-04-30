@@ -17,9 +17,9 @@ import {
 import {
   writeChunkFile,
   deleteChunkDir,
-  writeAudioFile,
 } from "../utils/storage";
 import { measureDurationMs } from "../utils/audio";
+import { concatFiles } from "../utils/concat";
 
 export interface WorkerOptions {
   db: DB;
@@ -152,15 +152,11 @@ export function createWorker(opts: WorkerOptions): Worker {
 
     const inputAbs = all.map((c) => path.join(opts.dataRoot, c.file_path));
     const finalName = `${uuidv4()}.mp3`;
+    const finalRel = path.join("audio", finalName);
+    const finalAbs = path.join(opts.dataRoot, finalRel);
 
-    let finalRel: string;
-    let tempBuf: Buffer;
     try {
-      // Concat first into a temp file under audio/, then rename.
-      tempBuf = Buffer.concat(
-        inputAbs.map((p) => fs.readFileSync(p))
-      ); // small enough — true streaming concat used for production volume comes via concatFiles in next refactor (Task 14).
-      finalRel = writeAudioFile(opts.dataRoot, finalName, tempBuf);
+      await concatFiles(inputAbs, finalAbs);
     } catch (e) {
       const msg = "Datei konnte nicht gespeichert werden";
       markRecordingFailed(opts.db, recordingId, msg);
@@ -170,7 +166,7 @@ export function createWorker(opts: WorkerOptions): Worker {
 
     let durationMs = 0;
     try {
-      durationMs = await measureDurationMs(tempBuf);
+      durationMs = await measureDurationMs(fs.readFileSync(finalAbs));
     } catch {
       // measureDurationMs failures are non-fatal — leave duration at 0.
     }
@@ -178,7 +174,7 @@ export function createWorker(opts: WorkerOptions): Worker {
     opts.db.transaction(() => {
       markRecordingDone(opts.db, recordingId, {
         file_path: finalRel,
-        file_size: tempBuf.length,
+        file_size: fs.statSync(finalAbs).size,
         duration_ms: durationMs,
       });
       opts.db

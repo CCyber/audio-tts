@@ -200,9 +200,8 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.get("/:id/audio", (req, res, next) => {
     try {
       const rec = getRecording(deps.db, Number(req.params.id));
-      // TODO Task 14: proper guard for status !== "done" / null file_path
-      if (!rec.file_path) {
-        throw new ApiError(404, "Audio not yet available");
+      if (rec.status !== "done" || !rec.file_path) {
+        throw new ApiError(404, "Recording is not ready");
       }
       const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
       res.type("audio/mpeg");
@@ -215,9 +214,8 @@ export function recordingsRouter(deps: AppDeps): Router {
   router.get("/:id/download", (req, res, next) => {
     try {
       const rec = getRecording(deps.db, Number(req.params.id));
-      // TODO Task 14: proper guard for status !== "done" / null file_path
-      if (!rec.file_path) {
-        throw new ApiError(404, "Audio not yet available");
+      if (rec.status !== "done" || !rec.file_path) {
+        throw new ApiError(404, "Recording is not ready");
       }
       const fullPath = audioPathFor(deps.dataRoot, rec.file_path);
       res.download(fullPath, `${rec.title.replace(/[^\w\-_.\s]/g, "_")}.mp3`);

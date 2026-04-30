@@ -189,6 +189,22 @@ describe("audio + download", () => {
     expect(res.headers["content-range"]).toMatch(/^bytes 0-99\//);
   });
 
+  it("GET /:id/audio returns 404 while still generating", async () => {
+    const resolvers: Array<(r: Response) => void> = [];
+    globalThis.fetch = vi.fn(() => new Promise<Response>((r) => { resolvers.push(r); })) as any;
+    const created = (await request(app).post("/api/recordings")
+      .field("text", "x".repeat(8000))
+      .field("voice", "alloy").field("model", "tts-1")).body;
+
+    const res = await request(app).get(`/api/recordings/${created.id}/audio`);
+    expect(res.status).toBe(404);
+
+    // Drain any in-flight + future fetches so the worker can finish cleanly.
+    globalThis.fetch = vi.fn(async () => new Response(Buffer.from([1]), { status: 200 })) as any;
+    for (const r of resolvers) r(new Response(Buffer.from([1]), { status: 200 }));
+    await worker.enqueueAndAwait(created.id);
+  });
+
   it("POST /api/recordings rejects unknown project_id before calling OpenAI", async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as any;
