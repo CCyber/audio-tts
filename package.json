@@ -4,9 +4,13 @@
   "description": "Aria — text-to-speech web app powered by the OpenAI API",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && tsc --project tsconfig.frontend.json && cp src/public/index.html src/public/style.css dist/public/ && cp src/db/schema.sql dist/db/",
+    "build:server": "tsc",
+    "build:frontend": "vite build",
+    "build": "npm run build:server && npm run build:frontend && cp src/db/schema.sql dist/db/",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
+    "dev:server": "tsc --watch",
+    "dev:frontend": "vite",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:frontend\"",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,14 +21,17 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@solidjs/router": "^0.16.1",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "multer": "^1.4.5-lts.1",
     "music-metadata": "^11.12.3",
+    "solid-js": "^1.9.12",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -32,8 +39,12 @@
     "@types/node": "^20.14.0",
     "@types/supertest": "^7.2.0",
     "@types/uuid": "^10.0.0",
+    "concurrently": "^9.2.1",
+    "jsdom": "^29.1.1",
     "supertest": "^7.2.2",
     "typescript": "^5.5.0",
+    "vite": "^8.0.10",
+    "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.5"
   }
 }
