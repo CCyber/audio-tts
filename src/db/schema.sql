@@ -12,14 +12,31 @@ CREATE TABLE IF NOT EXISTS recordings (
   original_text TEXT NOT NULL,
   voice TEXT NOT NULL,
   model TEXT NOT NULL,
-  file_path TEXT NOT NULL UNIQUE,
-  file_size INTEGER NOT NULL,
-  duration_ms INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'done',
+  progress_total INTEGER NOT NULL DEFAULT 0,
+  progress_done INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  file_path TEXT UNIQUE,
+  file_size INTEGER,
+  duration_ms INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_recordings_project ON recordings(project_id);
 CREATE INDEX IF NOT EXISTS idx_recordings_created ON recordings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
+
+CREATE TABLE IF NOT EXISTS recording_chunks (
+  recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+  idx          INTEGER NOT NULL,
+  text         TEXT    NOT NULL,
+  status       TEXT    NOT NULL,
+  file_path    TEXT,
+  byte_size    INTEGER,
+  error        TEXT,
+  PRIMARY KEY (recording_id, idx)
+);
+CREATE INDEX IF NOT EXISTS idx_recording_chunks_status ON recording_chunks(recording_id, status);
 
 CREATE TABLE IF NOT EXISTS tags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

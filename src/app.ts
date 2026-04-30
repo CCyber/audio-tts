@@ -2,6 +2,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import cors from "cors";
 import path from "path";
 import type { DB } from "./db";
+import type { Worker } from "./services/worker";
 import { ApiError } from "./utils/errors";
 import { projectsRouter } from "./routes/projects";
 import { tagsRouter } from "./routes/tags";
@@ -11,6 +12,7 @@ import { metaRouter } from "./routes/tts";
 export interface AppDeps {
   db: DB;
   dataRoot: string;
+  worker: Worker;
 }
 
 export function createApp(deps: AppDeps): Express {

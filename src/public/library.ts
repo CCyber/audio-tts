@@ -1,11 +1,16 @@
 import { api } from "./api.js";
 import { store } from "./state.js";
-import { renderCard } from "./card.js";
+import { renderCard, applyRecordingUpdate } from "./card.js";
+import { register as registerPolling } from "./polling.js";
 
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
 export function initLibrary(): void {
   document.addEventListener("aria:reload-recordings", reload);
+  document.addEventListener("aria:recording-updated", (ev: Event) => {
+    const r = (ev as CustomEvent).detail;
+    applyRecordingUpdate(r);
+  });
   store.subscribe(() => renderHeader());
   renderHeader();
   reload();
@@ -124,6 +129,9 @@ async function reload(): Promise<void> {
 
     for (const r of recordings) {
       listEl.appendChild(renderCard(r));
+    }
+    for (const r of recordings) {
+      if (r.status === "generating") registerPolling(r.id);
     }
   } catch (e) {
     console.error("Failed to load recordings:", e);

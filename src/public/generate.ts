@@ -95,7 +95,7 @@ function open(prefilled: PrefilledFields): void {
 
   textEl.value = prefilled.text ?? "";
   titleEl.value = prefilled.title ?? "";
-  if (prefilled.voice) voiceEl.value = prefilled.voice;
+  voiceEl.value = prefilled.voice ?? "nova";
   if (prefilled.model) modelEl.value = prefilled.model;
   projectEl.value = String(store.state.selectedProjectId);
   tagsEl.value = (prefilled.tags ?? []).join(", ");
@@ -118,7 +118,7 @@ function open(prefilled: PrefilledFields): void {
       return;
     }
     submitBtn.disabled = true;
-    submitBtn.textContent = "Wird generiert…";
+    submitBtn.textContent = "Wird gesendet…";
     errorEl.style.display = "none";
     try {
       const form = new FormData();
@@ -127,18 +127,14 @@ function open(prefilled: PrefilledFields): void {
       form.append("model", modelEl.value);
       form.append("project_id", projectEl.value);
       if (titleEl.value.trim()) form.append("title", titleEl.value.trim());
-      const tags = tagsEl.value
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-      for (const t of tags) {
-        form.append("tags[]", t);
-      }
+      const tags = tagsEl.value.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+      for (const t of tags) form.append("tags[]", t);
+
       await api.generateRecording(form);
       close();
+      document.dispatchEvent(new CustomEvent("aria:reload-recordings"));
       const [projects, tagsList] = await Promise.all([api.listProjects(), api.listTags()]);
       store.set({ projects, tags: tagsList });
-      document.dispatchEvent(new CustomEvent("aria:reload-recordings"));
     } catch (e) {
       showError((e as Error).message);
       submitBtn.disabled = false;

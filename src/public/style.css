@@ -54,3 +54,39 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, -apple
 .dropdown-menu button:hover { background: #f0f0f3; }
 
 .error-banner { background: #fee; color: #c00; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+
+.card-generating progress.progress-bar {
+  width: 100%;
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: #f0f0f3;
+  overflow: hidden;
+  margin: 8px 0 4px;
+}
+.card-generating progress.progress-bar::-webkit-progress-bar {
+  background: #f0f0f3;
+  border-radius: 3px;
+}
+.card-generating progress.progress-bar::-webkit-progress-value {
+  background: #2563eb;
+  border-radius: 3px;
+  transition: width 200ms ease;
+}
+.card-generating progress.progress-bar::-moz-progress-bar {
+  background: #2563eb;
+  border-radius: 3px;
+}
+.card-progress-status { font-size: 14px; color: #1a1a1a; margin-bottom: 2px; }
+.card-progress-detail { font-size: 12px; color: #888; margin-bottom: 12px; }
+
+.card-status-generating { opacity: 0.95; }
+.card-status-failed .fail-banner {
+  background: #fee;
+  color: #c00;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 8px 0 12px;
+  font-size: 13px;
+}
+.card-failed-actions { display: flex; gap: 8px; }

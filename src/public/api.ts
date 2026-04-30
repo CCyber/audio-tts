@@ -14,6 +14,8 @@ export interface TagWithCount extends Tag {
   count: number;
 }
 
+export type RecordingStatus = "generating" | "done" | "failed";
+
 export interface Recording {
   id: number;
   project_id: number;
@@ -21,9 +23,13 @@ export interface Recording {
   original_text: string;
   voice: string;
   model: string;
-  file_path: string;
-  file_size: number;
-  duration_ms: number;
+  status: RecordingStatus;
+  progress_total: number;
+  progress_done: number;
+  error: string | null;
+  file_path: string | null;
+  file_size: number | null;
+  duration_ms: number | null;
   created_at: string;
   tags: Tag[];
 }
@@ -83,6 +89,11 @@ export const api = {
     }
     return (await res.json()) as Recording;
   },
+
+  cancelRecording: (id: number) =>
+    jsonFetch<void>(`/api/recordings/${id}/cancel`, { method: "POST" }),
+  retryRecording: (id: number) =>
+    jsonFetch<Recording>(`/api/recordings/${id}/retry`, { method: "POST" }),
 
   listVoices: () =>
     jsonFetch<{ items: Array<{ _id: string; title: string }> }>("/api/voices").then((r) => r.items),

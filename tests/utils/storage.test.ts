@@ -38,3 +38,30 @@ describe("storage", () => {
     expect(audioPathFor(tmpRoot, "audio/x.mp3")).toBe(path.join(tmpRoot, "audio/x.mp3"));
   });
 });
+
+import {
+  writeChunkFile,
+  chunkPathFor,
+  deleteChunkDir,
+  chunkDirFor,
+} from "../../src/utils/storage";
+
+let dataRoot: string;
+beforeEach(() => { dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-storage-")); });
+afterEach(() => { fs.rmSync(dataRoot, { recursive: true, force: true }); });
+
+describe("chunk storage helpers", () => {
+  it("writeChunkFile returns a relative path under audio/chunks/<id>/", () => {
+    const rel = writeChunkFile(dataRoot, 42, 3, Buffer.from([9, 9]));
+    expect(rel).toBe(path.join("audio", "chunks", "42", "3.mp3"));
+    const abs = path.join(dataRoot, rel);
+    expect(fs.readFileSync(abs)[0]).toBe(9);
+  });
+
+  it("deleteChunkDir removes the whole recording chunk dir", () => {
+    writeChunkFile(dataRoot, 7, 0, Buffer.from([1]));
+    writeChunkFile(dataRoot, 7, 1, Buffer.from([2]));
+    deleteChunkDir(dataRoot, 7);
+    expect(fs.existsSync(chunkDirFor(dataRoot, 7))).toBe(false);
+  });
+});

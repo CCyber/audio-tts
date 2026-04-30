@@ -1,14 +1,21 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import { openDb, type DB } from "../../src/db";
 import { createApp } from "../../src/app";
+import { createWorker, type Worker } from "../../src/services/worker";
 
 let app: ReturnType<typeof createApp>;
 let db: DB;
+let worker: Worker;
 
 beforeEach(() => {
   db = openDb(":memory:");
-  app = createApp({ db, dataRoot: "/tmp" });
+  worker = createWorker({ db, dataRoot: "/tmp", retryBackoffMs: () => 0 });
+  app = createApp({ db, dataRoot: "/tmp", worker });
+});
+
+afterEach(() => {
+  worker.shutdown();
 });
 
 describe("/api/projects", () => {

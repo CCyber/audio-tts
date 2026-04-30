@@ -7,19 +7,26 @@ import { openDb, type DB } from "../../src/db";
 import { createApp } from "../../src/app";
 import { insertRecording } from "../../src/services/recordings";
 import { setTagsForRecording } from "../../src/services/tags";
+import { createWorker, type Worker } from "../../src/services/worker";
 
 let app: ReturnType<typeof createApp>;
 let db: DB;
 let dataRoot: string;
+let worker: Worker;
+let originalFetch: typeof fetch;
 
 beforeEach(() => {
   db = openDb(":memory:");
   dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aria-test-"));
-  app = createApp({ db, dataRoot });
+  worker = createWorker({ db, dataRoot, retryBackoffMs: () => 0 });
+  app = createApp({ db, dataRoot, worker });
+  originalFetch = globalThis.fetch;
 });
 
 afterEach(() => {
+  worker.shutdown();
   fs.rmSync(dataRoot, { recursive: true, force: true });
+  globalThis.fetch = originalFetch;
 });
 
 function seed(args: { title?: string; text?: string; projectId?: number } = {}) {
@@ -93,11 +100,12 @@ describe("/api/recordings (read/edit)", () => {
 });
 
 describe("POST /api/recordings", () => {
-  it("creates a recording end-to-end with mocked OpenAI", async () => {
+  it("submits a recording and worker finishes it asynchronously", async () => {
     const fakeMp3 = fs.readFileSync(path.join(__dirname, "../fixtures/silence.mp3"));
     globalThis.fetch = vi.fn(async () =>
       new Response(fakeMp3, { status: 200, headers: { "Content-Type": "audio/mpeg" } })
     ) as any;
+
     const res = await request(app)
       .post("/api/recordings")
       .field("text", "Hallo Welt")
@@ -105,10 +113,19 @@ describe("POST /api/recordings", () => {
       .field("model", "tts-1")
       .field("tags[]", "hello")
       .field("tags[]", "test");
-    expect(res.status).toBe(201);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("generating");
+    expect(res.body.progress_total).toBeGreaterThanOrEqual(1);
+    expect(res.body.file_path).toBeNull();
     expect(res.body.title).toBe("Hallo Welt");
-    expect(res.body.duration_ms).toBeGreaterThan(0);
-    expect(res.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
+
+    await worker.enqueueAndAwait(res.body.id);
+
+    const after = await request(app).get(`/api/recordings/${res.body.id}`);
+    expect(after.body.status).toBe("done");
+    expect(after.body.duration_ms).toBeGreaterThan(0);
+    expect(after.body.tags.map((t: any) => t.name).sort()).toEqual(["hello", "test"]);
   });
 });
 
@@ -125,6 +142,7 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app).get(`/api/recordings/${created.id}/audio`);
     expect(res.status).toBe(200);
@@ -143,6 +161,7 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app).get(`/api/recordings/${created.id}/download`);
     expect(res.status).toBe(200);
@@ -161,12 +180,29 @@ describe("audio + download", () => {
         .field("voice", "alloy")
         .field("model", "tts-1")
     ).body;
+    await worker.enqueueAndAwait(created.id);
 
     const res = await request(app)
       .get(`/api/recordings/${created.id}/audio`)
       .set("Range", "bytes=0-99");
     expect(res.status).toBe(206);
     expect(res.headers["content-range"]).toMatch(/^bytes 0-99\//);
+  });
+
+  it("GET /:id/audio returns 404 while still generating", async () => {
+    const resolvers: Array<(r: Response) => void> = [];
+    globalThis.fetch = vi.fn(() => new Promise<Response>((r) => { resolvers.push(r); })) as any;
+    const created = (await request(app).post("/api/recordings")
+      .field("text", "x".repeat(8000))
+      .field("voice", "alloy").field("model", "tts-1")).body;
+
+    const res = await request(app).get(`/api/recordings/${created.id}/audio`);
+    expect(res.status).toBe(404);
+
+    // Drain any in-flight + future fetches so the worker can finish cleanly.
+    globalThis.fetch = vi.fn(async () => new Response(Buffer.from([1]), { status: 200 })) as any;
+    for (const r of resolvers) r(new Response(Buffer.from([1]), { status: 200 }));
+    await worker.enqueueAndAwait(created.id);
   });
 
   it("POST /api/recordings rejects unknown project_id before calling OpenAI", async () => {
@@ -181,5 +217,79 @@ describe("audio + download", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/project/i);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancel and retry endpoints", () => {
+  it("POST /:id/cancel deletes a generating recording + chunk files", async () => {
+    // Block fetch so the worker doesn't finish before we cancel.
+    let resolveFetch: (r: Response) => void;
+    globalThis.fetch = vi.fn(
+      () => new Promise<Response>((res) => { resolveFetch = res; })
+    ) as any;
+
+    const created = (await request(app)
+      .post("/api/recordings")
+      .field("text", "x".repeat(8000)) // 2 chunks
+      .field("voice", "alloy")
+      .field("model", "tts-1")).body;
+
+    expect(created.status).toBe("generating");
+
+    const cancelled = await request(app).post(`/api/recordings/${created.id}/cancel`);
+    expect(cancelled.status).toBe(204);
+
+    // Allow the in-flight fetch to resolve so the worker observes cancel.
+    resolveFetch!(new Response(Buffer.from([1]), { status: 200 }));
+    await worker.enqueueAndAwait(created.id);
+
+    const after = await request(app).get(`/api/recordings/${created.id}`);
+    expect(after.status).toBe(404);
+    expect(fs.existsSync(path.join(dataRoot, "audio", "chunks", String(created.id)))).toBe(false);
+  });
+
+  it("POST /:id/cancel returns 409 if not generating", async () => {
+    const r = seed();
+    db.prepare("UPDATE recordings SET status='done' WHERE id=?").run(r.id);
+    const res = await request(app).post(`/api/recordings/${r.id}/cancel`);
+    expect(res.status).toBe(409);
+  });
+
+  it("POST /:id/retry resets failed chunks and re-enqueues", async () => {
+    let n = 0;
+    globalThis.fetch = vi.fn(async () => {
+      n++;
+      if (n === 2) return new Response("boom", { status: 400 });
+      return new Response(Buffer.from([1, 2]), { status: 200 });
+    }) as any;
+
+    const created = (await request(app).post("/api/recordings")
+      .field("text", "x".repeat(8000))
+      .field("voice", "alloy")
+      .field("model", "tts-1")).body;
+    await worker.enqueueAndAwait(created.id);
+
+    expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("failed");
+
+    // Make the next attempt succeed.
+    const retryFetch = vi.fn(async () =>
+      new Response(Buffer.from([1, 2]), { status: 200 })
+    );
+    globalThis.fetch = retryFetch as any;
+
+    const retry = await request(app).post(`/api/recordings/${created.id}/retry`);
+    expect(retry.status).toBe(200);
+    expect(retry.body.status).toBe("generating");
+
+    await worker.enqueueAndAwait(created.id);
+    expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("done");
+    // Resume contract: only the failed chunk (idx 1) should be re-fetched.
+    expect(retryFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("POST /:id/retry returns 409 if not failed", async () => {
+    const r = seed();
+    const res = await request(app).post(`/api/recordings/${r.id}/retry`);
+    expect(res.status).toBe(409);
   });
 });

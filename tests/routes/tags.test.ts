@@ -1,20 +1,27 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import { openDb, type DB } from "../../src/db";
 import { createApp } from "../../src/app";
 import { setTagsForRecording } from "../../src/services/tags";
+import { createWorker, type Worker } from "../../src/services/worker";
 
 let app: ReturnType<typeof createApp>;
 let db: DB;
+let worker: Worker;
 
 beforeEach(() => {
   db = openDb(":memory:");
-  app = createApp({ db, dataRoot: "/tmp" });
+  worker = createWorker({ db, dataRoot: "/tmp", retryBackoffMs: () => 0 });
+  app = createApp({ db, dataRoot: "/tmp", worker });
   // Eine Recording einfügen, um Tag-Counts zu testen
   db.prepare(
     "INSERT INTO recordings (project_id, title, original_text, voice, model, file_path, file_size, duration_ms) VALUES (1, 't', 'x', 'alloy', 'tts-1', 'audio/x.mp3', 1, 1000)"
   ).run();
   setTagsForRecording(db, 1, ["urgent", "lernen"]);
+});
+
+afterEach(() => {
+  worker.shutdown();
 });
 
 describe("/api/tags", () => {
