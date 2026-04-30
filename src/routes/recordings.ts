@@ -108,8 +108,7 @@ export function recordingsRouter(deps: AppDeps): Router {
       // Worker will see the flag at the next chunk boundary. We delete the row +
       // chunk dir now: ON DELETE CASCADE removes recording_chunks. Any in-flight
       // chunk write will land in a now-stale dir; we sweep it on the next line.
-      const filePath = rec.file_path;
-      deps.db.prepare("DELETE FROM recordings WHERE id = ?").run(id);
+      const filePath = deleteRecordingRow(deps.db, id);
       if (filePath) deleteAudioFile(deps.dataRoot, filePath);
       deleteChunkDir(deps.dataRoot, id);
 

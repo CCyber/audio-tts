@@ -256,9 +256,10 @@ describe("cancel and retry endpoints", () => {
     expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("failed");
 
     // Make the next attempt succeed.
-    globalThis.fetch = vi.fn(async () =>
+    const retryFetch = vi.fn(async () =>
       new Response(Buffer.from([1, 2]), { status: 200 })
-    ) as any;
+    );
+    globalThis.fetch = retryFetch as any;
 
     const retry = await request(app).post(`/api/recordings/${created.id}/retry`);
     expect(retry.status).toBe(200);
@@ -266,6 +267,8 @@ describe("cancel and retry endpoints", () => {
 
     await worker.enqueueAndAwait(created.id);
     expect((await request(app).get(`/api/recordings/${created.id}`)).body.status).toBe("done");
+    // Resume contract: only the failed chunk (idx 1) should be re-fetched.
+    expect(retryFetch).toHaveBeenCalledTimes(1);
   });
 
   it("POST /:id/retry returns 409 if not failed", async () => {
