@@ -62,3 +62,36 @@ export function removeProject(id: number): void {
 export function pendingRecordings(): Recording[] {
   return libraryState.recordings.filter((r) => r.status === "generating");
 }
+
+let pollHandle: ReturnType<typeof setInterval> | null = null;
+
+export function startPolling(): void {
+  if (pollHandle !== null) return;
+  pollHandle = setInterval(async () => {
+    const pending = pendingRecordings();
+    if (pending.length === 0) {
+      stopPolling();
+      return;
+    }
+    for (const rec of pending) {
+      try {
+        const fresh = await api.getRecording(rec.id);
+        upsertRecording(fresh);
+      } catch {
+        // ignore transient errors; next tick will retry
+      }
+    }
+  }, 1000);
+}
+
+export function stopPolling(): void {
+  if (pollHandle !== null) {
+    clearInterval(pollHandle);
+    pollHandle = null;
+  }
+}
+
+export function upsertRecordingAndPoll(rec: Recording): void {
+  upsertRecording(rec);
+  if (rec.status === "generating") startPolling();
+}

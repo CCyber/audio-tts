@@ -3,7 +3,7 @@ import { Sheet } from "../common/Sheet";
 import { Button } from "../common/Button";
 import { Chip } from "../common/Chip";
 import { uiState, closeCompose } from "../../stores/ui";
-import { libraryState, upsertRecording } from "../../stores/library";
+import { libraryState, upsertRecordingAndPoll } from "../../stores/library";
 import { api } from "../../lib/api";
 
 const VOICE_VAR: Record<string, string> = {
@@ -57,7 +57,7 @@ export function ComposeSheet() {
       tags().forEach((t) => form.append("tags", t));
 
       const recording = await api.generateRecording(form);
-      upsertRecording(recording);
+      upsertRecordingAndPoll(recording);
       reset();
       closeCompose();
     } catch (err) {
