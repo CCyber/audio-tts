@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { generateTtsBuffer, ALLOWED_MODELS, VOICES } from "../../src/services/tts";
+import {
+  generateTtsBuffer,
+  ALLOWED_MODELS,
+  VOICES,
+  generateChunkBuffer,
+  splitTextIntoChunks,
+} from "../../src/services/tts";
 
 let originalFetch: typeof fetch;
 
@@ -57,5 +63,56 @@ describe("generateTtsBuffer", () => {
   it("exposes ALLOWED_MODELS and VOICES", () => {
     expect(ALLOWED_MODELS).toEqual(["tts-1", "gpt-4o-mini-tts"]);
     expect(VOICES.length).toBeGreaterThan(0);
+  });
+});
+
+describe("splitTextIntoChunks (now exported)", () => {
+  it("splits long text into <= 4000-char chunks", () => {
+    const text = "a".repeat(10_000);
+    const chunks = splitTextIntoChunks(text, 4000);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every((c) => c.length <= 4000)).toBe(true);
+  });
+});
+
+describe("generateChunkBuffer auto-retry", () => {
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = "test";
+  });
+
+  it("retries on 429 and succeeds on second attempt", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(new Response(Buffer.from([1, 2, 3]), { status: 200 }));
+    globalThis.fetch = fetchMock as any;
+
+    const buf = await generateChunkBuffer({
+      text: "hi", voice: "alloy", model: "tts-1",
+    }, { backoffMs: () => 0 });
+
+    expect(buf.length).toBe(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after 3 attempts on persistent 429", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("nope", { status: 429 }));
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      generateChunkBuffer({ text: "hi", voice: "alloy", model: "tts-1" },
+                         { backoffMs: () => 0 })
+    ).rejects.toThrow(/429/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry on 4xx (other)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("bad", { status: 400 }));
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      generateChunkBuffer({ text: "hi", voice: "alloy", model: "tts-1" },
+                         { backoffMs: () => 0 })
+    ).rejects.toThrow(/400/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

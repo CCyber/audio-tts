@@ -82,7 +82,7 @@ async function callOpenAi(
   return Buffer.from(arrayBuf);
 }
 
-function splitTextIntoChunks(text: string, maxLen: number): string[] {
+export function splitTextIntoChunks(text: string, maxLen: number): string[] {
   if (text.length <= maxLen) {
     return [text];
   }
@@ -115,4 +115,50 @@ function splitTextIntoChunks(text: string, maxLen: number): string[] {
     remaining = remaining.substring(splitIndex).trim();
   }
   return chunks.filter((c) => c.length > 0);
+}
+
+export interface GenerateChunkOptions {
+  /** Number of attempts in total (default 3). */
+  attempts?: number;
+  /** Backoff in ms for retry attempt N (1-based). Default: linear 2s, 4s. */
+  backoffMs?: (attempt: number) => number;
+}
+
+export async function generateChunkBuffer(
+  input: GenerateInput,
+  opts: GenerateChunkOptions = {}
+): Promise<Buffer> {
+  const apiKey = getApiKey();
+  if (!VOICES.some((v) => v.id === input.voice)) {
+    throw new ApiError(400, `Unknown voice: ${input.voice}`);
+  }
+  if (!isAllowedModel(input.model)) {
+    throw new ApiError(400, `Unknown model: ${input.model}`);
+  }
+
+  const attempts = opts.attempts ?? 3;
+  const backoffMs = opts.backoffMs ?? ((n: number) => n * 2000);
+
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await callOpenAi(apiKey, input.text, input.voice, input.model);
+    } catch (e) {
+      lastErr = e;
+      if (!(e instanceof ApiError) || !shouldRetry(e) || attempt === attempts) {
+        throw e;
+      }
+      await delay(backoffMs(attempt));
+    }
+  }
+  throw lastErr;
+}
+
+function shouldRetry(e: ApiError): boolean {
+  // Retry on rate limit and 5xx upstream.
+  return /\b(429|5\d\d)\b/.test(e.message);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((res) => setTimeout(res, ms));
 }
