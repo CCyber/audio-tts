@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import type { DB } from "./db";
 import { ApiError } from "./utils/errors";
+import { projectsRouter } from "./routes/projects";
 
 export interface AppDeps {
   db: DB;
@@ -25,6 +26,8 @@ export function createApp(deps: AppDeps): Express {
       uptime: process.uptime(),
     });
   });
+
+  app.use("/api/projects", projectsRouter(deps));
 
   // Static frontend
   app.use(express.static(path.join(__dirname, "public")));
