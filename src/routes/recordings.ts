@@ -107,7 +107,8 @@ export function recordingsRouter(deps: AppDeps): Router {
         const durationMs = await measureDurationMs(buffer);
 
         const filename = `${uuidv4()}.mp3`;
-        writtenRelativePath = writeAudioFile(deps.dataRoot, filename, buffer);
+        const filePath = writeAudioFile(deps.dataRoot, filename, buffer);
+        writtenRelativePath = filePath;
 
         const title = titleInput.trim() || deriveTitle(text, 50);
 
@@ -118,7 +119,7 @@ export function recordingsRouter(deps: AppDeps): Router {
             original_text: text.trim(),
             voice,
             model,
-            file_path: writtenRelativePath,
+            file_path: filePath,
             file_size: buffer.length,
             duration_ms: durationMs,
           });
